@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Popup } from './popup/entities/popup.entity';
 import { PopupModule } from './popup/popup.module';
+import { PopupOperationPolicy } from './popup/entities/popup-operation-policy.entity';
+import { PopupOperationPolicyDay } from './popup/entities/popup-operation-policy-day.entity';
 
 @Module({
   imports: [
@@ -13,7 +15,7 @@ import { PopupModule } from './popup/popup.module';
       password: 'chn80114841',
       database: 'PICKIT',
       synchronize: true,
-      entities: [Popup],
+      entities: [Popup, PopupOperationPolicy, PopupOperationPolicyDay],
     }),
     PopupModule,
   ],

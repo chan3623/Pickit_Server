@@ -21,6 +21,12 @@ export class PopupController {
     return popupData;
   }
 
+  @Get('operation/:id')
+  async getPopupOperation(@Param('id') id: string) {
+    const popupOperationData = await this.popupService.findPopupByOperation(+id);
+    return popupOperationData;
+  }
+
   @Post()
   create(@Body() createPopupDto: CreatePopupDto) {
     return this.popupService.create(createPopupDto);
