@@ -13,8 +13,23 @@ export class Popup extends BaseTable {
   title: string;
 
   @Column()
+  address: string;
+
+  @Column()
+  description: string;
+
+  @Column()
+  imagePath: string;
+
+  @Column()
   startDate: Date;
 
   @Column()
   endDate: Date;
+
+  @Column()
+  park: boolean;
+
+  @Column()
+  is_free: boolean;
 }

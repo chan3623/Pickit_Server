@@ -21,20 +21,25 @@ export class PopupController {
     return popupData;
   }
 
+  @Get('random')
+  async getRandomPopups() {
+    return await this.popupService.findRandomPopups();
+  }
+
   @Get('operation/:id')
   async getPopupOperation(@Param('id') id: string) {
-    const popupOperationData = await this.popupService.findPopupByOperation(+id);
+    const popupOperationData = await this.popupService.findPopupOperation(+id);
     return popupOperationData;
+  }
+
+  @Get(':id')
+  getPopup(@Param('id') id: string) {
+    return this.popupService.findOne(+id);
   }
 
   @Post()
   create(@Body() createPopupDto: CreatePopupDto) {
     return this.popupService.create(createPopupDto);
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.popupService.findOne(+id);
   }
 
   @Patch(':id')
