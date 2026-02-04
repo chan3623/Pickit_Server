@@ -19,6 +19,9 @@ export class Popup extends BaseTable {
   description: string;
 
   @Column()
+  tel: string;
+
+  @Column()
   imagePath: string;
 
   @Column()

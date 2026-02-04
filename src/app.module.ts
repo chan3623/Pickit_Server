@@ -6,6 +6,7 @@ import { PopupModule } from './popup/popup.module';
 import { PopupOperationPolicy } from './popup/entities/popup-operation-policy.entity';
 import { PopupOperationPolicyDay } from './popup/entities/popup-operation-policy-day.entity';
 import { join } from 'path';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { join } from 'path';
       entities: [Popup, PopupOperationPolicy, PopupOperationPolicyDay],
     }),
     PopupModule,
+    UserModule,
   ],
 })
 export class AppModule {}

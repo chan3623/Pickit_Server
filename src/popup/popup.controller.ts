@@ -27,14 +27,18 @@ export class PopupController {
   }
 
   @Get('operation/:id')
-  async getPopupOperation(@Param('id') id: string) {
-    const popupOperationData = await this.popupService.findPopupOperation(+id);
-    return popupOperationData;
+  async getPopupOperation(@Param('id') id: number) {
+    return await this.popupService.findPopupOperation(id);
+  }
+
+  @Get('detail/:id')
+  async getPopupDetail(@Param('id') id: number) {
+    return await this.popupService.findPopupDetail(id);
   }
 
   @Get(':id')
-  getPopup(@Param('id') id: string) {
-    return this.popupService.findOne(+id);
+  getPopup(@Param('id') id: number) {
+    return this.popupService.findOne(id);
   }
 
   @Post()

@@ -71,6 +71,24 @@ export class PopupService {
     };
   }
 
+  async findPopupDetail(id: number) {
+    const detail = await this.popupRepository.findOne({
+      select: {
+        description: true,
+        tel: true,
+      },
+      where: {
+        id,
+      },
+    });
+
+    if (!detail) {
+      throw new NotFoundException('존재하지 않는 ID의 팝업스토어입니다.');
+    }
+
+    return detail;
+  }
+
   async findOne(id: number) {
     const popup = await this.popupRepository.findOne({
       where: { id },
