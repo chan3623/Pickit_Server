@@ -6,6 +6,8 @@ import { UpdatePopupDto } from './dto/update-popup.dto';
 import { Popup } from './entities/popup.entity';
 import { PopupOperationPolicy } from './entities/popup-operation-policy.entity';
 import { PopupOperationPolicyDay } from './entities/popup-operation-policy-day.entity';
+import { PopupReservationSlot } from './entities/popup-reservation-slot.entity';
+import { PopupReservation } from './entities/popup-reservation.entity';
 
 @Injectable()
 export class PopupService {
@@ -16,6 +18,10 @@ export class PopupService {
     private readonly popupOperationPolicyRepository: Repository<PopupOperationPolicy>,
     @InjectRepository(PopupOperationPolicyDay)
     private readonly popupOperationPolicyDayRepository: Repository<PopupOperationPolicyDay>,
+    @InjectRepository(PopupReservationSlot)
+    private readonly popupReservationSlotRepository: Repository<PopupReservationSlot>,
+    @InjectRepository(PopupReservation)
+    private readonly popupReservationRepository: Repository<PopupReservation>,
   ) {}
 
   create(createPopupDto: CreatePopupDto) {
@@ -42,32 +48,48 @@ export class PopupService {
       where: { id },
     });
 
-    if(!popup){
+    if (!popup) {
       throw new NotFoundException('존재하지 않는 ID입니다.');
     }
 
     const policy = await this.popupOperationPolicyRepository.find({
-      where: {
-        popupId: popup.id,
-      },
+      where: { popupId: popup.id },
     });
 
-    if(!policy){
-      throw new NotFoundException('존재하지 않는 ID입니다.');
+    if (policy.length === 0) {
+      throw new NotFoundException('운영 정책이 없습니다.');
     }
 
-    const policyIds = policy.map((item) => item.id);
+    const policyIds = policy.map(p => p.id);
 
     const policyDay = await this.popupOperationPolicyDayRepository.find({
-      where: {
-        policyId: In(policyIds),
-      },
+      where: { policyId: In(policyIds) },
     });
+
+    /**
+     * 🔥 slot + 예약 인원 집계
+     */
+    const slots = await this.popupReservationSlotRepository
+      .createQueryBuilder('slot')
+      .leftJoin('slot.reservations', 'reservation')
+      .select([
+        'slot.id AS id',
+        'slot.policy_id AS "policyId"',
+        'slot.date AS date',
+        'slot.time AS time',
+        'COALESCE(SUM(reservation.quantity), 0) AS reserved',
+      ])
+      .where('slot.policy_id IN (:...policyIds)', { policyIds })
+      .groupBy('slot.id')
+      .orderBy('slot.date', 'ASC')
+      .addOrderBy('slot.time', 'ASC')
+      .getRawMany();
 
     return {
       popup,
       policy,
       policyDay,
+      slots, // 👈 프론트에서 사용하는 핵심 데이터
     };
   }
 

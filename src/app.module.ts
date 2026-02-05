@@ -11,6 +11,8 @@ import { Popup } from './popup/entities/popup.entity';
 import { PopupModule } from './popup/popup.module';
 import { User } from './user/entities/user.entity';
 import { UserModule } from './user/user.module';
+import { PopupReservationSlot } from './popup/entities/popup-reservation-slot.entity';
+import { PopupReservation } from './popup/entities/popup-reservation.entity';
 
 @Module({
   imports: [
@@ -32,7 +34,7 @@ import { UserModule } from './user/user.module';
       password: 'chn80114841',
       database: 'PICKIT',
       synchronize: true,
-      entities: [Popup, PopupOperationPolicy, PopupOperationPolicyDay, User],
+      entities: [Popup, PopupOperationPolicy, PopupOperationPolicyDay, PopupReservationSlot, PopupReservation, User],
     }),
     PopupModule,
     UserModule,

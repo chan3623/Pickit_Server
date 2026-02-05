@@ -5,6 +5,8 @@ import { PopupOperationPolicy } from './entities/popup-operation-policy.entity';
 import { Popup } from './entities/popup.entity';
 import { PopupController } from './popup.controller';
 import { PopupService } from './popup.service';
+import { PopupReservationSlot } from './entities/popup-reservation-slot.entity';
+import { PopupReservation } from './entities/popup-reservation.entity';
 
 @Module({
   imports: [
@@ -12,6 +14,8 @@ import { PopupService } from './popup.service';
       Popup,
       PopupOperationPolicy,
       PopupOperationPolicyDay,
+      PopupReservationSlot,
+      PopupReservation,
     ]),
   ],
   controllers: [PopupController],

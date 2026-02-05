@@ -22,7 +22,10 @@ export class PopupOperationPolicy extends BaseTable {
   closeTime: string; // '19:00'
 
   @Column({ type: "int" })
-  slotHours: number; // 2 (2시간 단위)
+  slotMinute: number; // '30, 60, 90'
+
+  @Column({ type: "int", name: "capacity_per_slot", default: 0 })
+  capacityPerSlot: number; // 한 타임별 수용 인원 수
 
   @OneToMany(
     () => PopupOperationPolicyDay,
