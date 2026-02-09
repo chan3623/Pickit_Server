@@ -3,11 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { CreatePopupDto } from './dto/create-popup.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
-import { Popup } from './entities/popup.entity';
-import { PopupOperationPolicy } from './entities/popup-operation-policy.entity';
 import { PopupOperationPolicyDay } from './entities/popup-operation-policy-day.entity';
+import { PopupOperationPolicy } from './entities/popup-operation-policy.entity';
 import { PopupReservationSlot } from './entities/popup-reservation-slot.entity';
 import { PopupReservation } from './entities/popup-reservation.entity';
+import { Popup } from './entities/popup.entity';
 
 @Injectable()
 export class PopupService {
@@ -57,14 +57,22 @@ export class PopupService {
     });
 
     if (policy.length === 0) {
-      throw new NotFoundException('운영 정책이 없습니다.');
+      throw new NotFoundException(
+        '해당 팝업스토어의 운영시간이 존재하지 않습니다.',
+      );
     }
 
-    const policyIds = policy.map(p => p.id);
+    const policyIds = policy.map((p) => p.id);
 
     const policyDay = await this.popupOperationPolicyDayRepository.find({
       where: { policyId: In(policyIds) },
     });
+
+    if (policyDay.length === 0) {
+      throw new NotFoundException(
+        '해당 팝업스토어의 요일별 정보가 존재하지 않습니다.',
+      );
+    }
 
     /**
      * 🔥 slot + 예약 인원 집계
@@ -89,7 +97,7 @@ export class PopupService {
       popup,
       policy,
       policyDay,
-      slots, // 👈 프론트에서 사용하는 핵심 데이터
+      slots,
     };
   }
 
@@ -116,7 +124,7 @@ export class PopupService {
       where: { id },
     });
 
-    if(!popup){
+    if (!popup) {
       throw new NotFoundException('존재하지 않는 popup의 ID입니다.');
     }
 

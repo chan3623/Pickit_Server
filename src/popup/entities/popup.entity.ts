@@ -6,9 +6,6 @@ export class Popup extends BaseTable {
   @PrimaryGeneratedColumn()
   id: number;
 
-  //   @Column()
-  //   creator: string;
-
   @Column({ unique: true })
   title: string;
 
