@@ -31,5 +31,5 @@ export class Popup extends BaseTable {
   park: boolean;
 
   @Column()
-  is_free: boolean;
+  isFree: boolean;
 }

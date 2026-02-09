@@ -3,30 +3,24 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { CreatePopupDto } from './dto/create-popup.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
-import { PopupOperationPolicyDay } from './entities/popup-operation-policy-day.entity';
-import { PopupOperationPolicy } from './entities/popup-operation-policy.entity';
-import { PopupReservationSlot } from './entities/popup-reservation-slot.entity';
-import { PopupReservation } from './entities/popup-reservation.entity';
 import { Popup } from './entities/popup.entity';
+import { PopupDayInfo } from './entities/popup-day-info.entity';
+import { PopupReservation } from './entities/popup-reservation.entity';
+import { PopupReservationInfo } from './entities/popup-reservation-info.entity';
+import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
 
 @Injectable()
 export class PopupService {
   constructor(
     @InjectRepository(Popup)
     private readonly popupRepository: Repository<Popup>,
-    @InjectRepository(PopupOperationPolicy)
-    private readonly popupOperationPolicyRepository: Repository<PopupOperationPolicy>,
-    @InjectRepository(PopupOperationPolicyDay)
-    private readonly popupOperationPolicyDayRepository: Repository<PopupOperationPolicyDay>,
-    @InjectRepository(PopupReservationSlot)
-    private readonly popupReservationSlotRepository: Repository<PopupReservationSlot>,
+    @InjectRepository(PopupDayInfo)
+    private readonly popupDayInfoRepository: Repository<PopupDayInfo>,
     @InjectRepository(PopupReservation)
     private readonly popupReservationRepository: Repository<PopupReservation>,
+    @InjectRepository(PopupReservationInfo)
+    private readonly popupReservationInfoRepository: Repository<PopupReservationInfo>,
   ) {}
-
-  create(createPopupDto: CreatePopupDto) {
-    return 'This action adds a new popup';
-  }
 
   async findAll() {
     return await this.popupRepository
@@ -43,80 +37,91 @@ export class PopupService {
       .getMany();
   }
 
-  async findPopupOperation(id: number) {
+  async findPopupReservation(popupId: number) {
+    /**
+     * 1. 팝업 조회
+     */
+    const popup = await this.popupRepository.findOne({
+      select: {
+        id: true,
+        title: true,
+        startDate: true,
+        endDate: true,
+      },
+      where: { id: popupId },
+    });
+
+    if (!popup) {
+      throw new NotFoundException('존재하지 않는 팝업입니다.');
+    }
+
+    /**
+     * 2. 요일별 운영 정보
+     */
+    const dayInfos = await this.popupDayInfoRepository.find({
+      where: { popupId },
+      order: { dayOfWeek: 'ASC' },
+    });
+
+    if (dayInfos.length === 0) {
+      throw new NotFoundException(
+        '해당 팝업의 요일별 운영 정보가 존재하지 않습니다.',
+      );
+    }
+
+    /**
+     * 3. 예약 타임별 예약 인원 집계
+     */
+    const reservations = await this.popupReservationRepository
+      .createQueryBuilder('reservation')
+      .leftJoin('reservation.reservationInfos', 'info')
+      .select([
+        'reservation.popupId AS "popupId"',
+        'reservation.date AS date',
+        'reservation.time AS time',
+        'COALESCE(SUM(info.quantity), 0) AS "reservedCount"',
+      ])
+      .where('reservation.popupId = :popupId', { popupId })
+      .groupBy('reservation.popupId')
+      .addGroupBy('reservation.date')
+      .addGroupBy('reservation.time')
+      .orderBy('reservation.date', 'ASC')
+      .addOrderBy('reservation.time', 'ASC')
+      .getRawMany();
+
+    /**
+     * 4. 응답
+     */
+    return {
+      popup,
+      dayInfos,
+      reservations,
+    };
+  }
+
+  async findPopupDetail(id: number) {
     const popup = await this.popupRepository.findOne({
       where: { id },
     });
 
     if (!popup) {
-      throw new NotFoundException('존재하지 않는 ID입니다.');
-    }
-
-    const policy = await this.popupOperationPolicyRepository.find({
-      where: { popupId: popup.id },
-    });
-
-    if (policy.length === 0) {
-      throw new NotFoundException(
-        '해당 팝업스토어의 운영시간이 존재하지 않습니다.',
-      );
-    }
-
-    const policyIds = policy.map((p) => p.id);
-
-    const policyDay = await this.popupOperationPolicyDayRepository.find({
-      where: { policyId: In(policyIds) },
-    });
-
-    if (policyDay.length === 0) {
-      throw new NotFoundException(
-        '해당 팝업스토어의 요일별 정보가 존재하지 않습니다.',
-      );
-    }
-
-    /**
-     * 🔥 slot + 예약 인원 집계
-     */
-    const slots = await this.popupReservationSlotRepository
-      .createQueryBuilder('slot')
-      .leftJoin('slot.reservations', 'reservation')
-      .select([
-        'slot.id AS id',
-        'slot.policy_id AS "policyId"',
-        'slot.date AS date',
-        'slot.time AS time',
-        'COALESCE(SUM(reservation.quantity), 0) AS reserved',
-      ])
-      .where('slot.policy_id IN (:...policyIds)', { policyIds })
-      .groupBy('slot.id')
-      .orderBy('slot.date', 'ASC')
-      .addOrderBy('slot.time', 'ASC')
-      .getRawMany();
-
-    return {
-      popup,
-      policy,
-      policyDay,
-      slots,
-    };
-  }
-
-  async findPopupDetail(id: number) {
-    const detail = await this.popupRepository.findOne({
-      select: {
-        description: true,
-        tel: true,
-      },
-      where: {
-        id,
-      },
-    });
-
-    if (!detail) {
       throw new NotFoundException('존재하지 않는 ID의 팝업스토어입니다.');
     }
 
-    return detail;
+    const dayOfInfo = await this.popupDayInfoRepository.find({
+      where: {
+        popupId: id,
+      },
+    });
+
+    if (!dayOfInfo) {
+      throw new NotFoundException('해당 팝업스토어의 요일별 시간이 존재하지 않습니다.');
+    }
+
+    return {
+      popup,
+      dayOfInfo,
+    };
   }
 
   async findOne(id: number) {
@@ -129,6 +134,41 @@ export class PopupService {
     }
 
     return popup;
+  }
+
+  async createReservation(userId: number, createPopupReservationDto: CreatePopupReservationDto) {
+    const { popupId, date, time, phone, count } = createPopupReservationDto;
+
+    // 1. 예약 슬롯 조회
+    let reservation = await this.popupReservationRepository.findOne({
+      where: {
+        popupId,
+        date,
+        time,
+      },
+    });
+
+    // 2. 슬롯이 없으면 생성
+    if (!reservation) {
+      reservation = await this.popupReservationRepository.save({
+        popupId,
+        date,
+        time,
+      });
+    }
+
+    // 3. 슬롯이 반드시 존재함 (타입 안정성 확보)
+    if (!reservation) {
+      throw new Error('예약 슬롯 생성 실패');
+    }
+
+    // 4. 예약자 정보 생성
+    return await this.popupReservationInfoRepository.save({
+      reservationId: reservation.id,
+      quantity: count,
+      userId,
+      reserverPhone: phone,
+    });
   }
 
   update(id: number, updatePopupDto: UpdatePopupDto) {

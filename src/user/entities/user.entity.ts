@@ -1,5 +1,6 @@
 import { BaseTable } from 'src/common/entities/base-table.entity';
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { PopupReservationInfo } from '../../popup/entities/popup-reservation-info.entity';
 
 export enum Role {
   systemAdmin,
@@ -7,20 +8,27 @@ export enum Role {
   user,
 }
 
-@Entity()
+@Entity('user')
 export class User extends BaseTable {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ unique: true })
   email: string;
 
   @Column()
   password: string;
 
   @Column({
+    type: 'enum',
     enum: Role,
     default: Role.user,
   })
   role: Role;
+
+  @OneToMany(
+    () => PopupReservationInfo,
+    (reservationInfo) => reservationInfo.user,
+  )
+  reservationInfos: PopupReservationInfo[];
 }

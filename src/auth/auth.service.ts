@@ -123,9 +123,7 @@ export class AuthService {
 
   async login(token: string) {
     const { email, password } = this.parseBasicToken(token);
-
     const user = await this.authenticate(email, password);
-
     return {
       accessToken: await this.issueToken(user, false),
       refreshToken: await this.issueToken(user, true),

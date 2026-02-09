@@ -42,17 +42,15 @@ export class UserService {
     });
   }
 
-  async getMe(token: string) {
-    const payload = await this.authService.parseBearerToken(token, false);
-
-    const user = await this.userRepository.findOne({
+  async getMe(userId: number) {
+    return this.userRepository.findOne({
       select: {
         email: true,
       },
-      where: { id: payload.sub },
+      where: {
+        id: userId,
+      },
     });
-
-    return user;
   }
 
   findAll() {

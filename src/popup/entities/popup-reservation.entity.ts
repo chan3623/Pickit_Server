@@ -4,30 +4,32 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
+  Unique,
 } from 'typeorm';
-import { PopupReservationSlot } from './popup-reservation-slot.entity';
+import { PopupReservationInfo } from './popup-reservation-info.entity';
+import { Popup } from './popup.entity';
 
 @Entity('popup_reservation')
+@Unique(['popupId', 'date', 'time'])
 export class PopupReservation extends BaseTable {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'slot_id', type: 'int' })
-  slotId: number;
+  @Column({ name: 'popupId', type: 'int' })
+  popupId: number;
 
-  @Column({ type: 'int' })
-  quantity: number; // 예약 인원 수 (보통 1~n)
+  @Column({ type: 'date' })
+  date: string; // 2026-02-05
 
-  @Column({ type: 'varchar', length: 50 })
-  reserverName: string;
+  @Column({ type: 'time' })
+  time: string; // 10:00:00
 
-  @Column({ type: 'varchar', length: 20 })
-  reserverPhone: string;
+  @ManyToOne(() => Popup, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'popupId' })
+  popup: Popup;
 
-  @ManyToOne(() => PopupReservationSlot, (slot) => slot.reservations, {
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'slot_id' })
-  slot: PopupReservationSlot;
+  @OneToMany(() => PopupReservationInfo, (info) => info.reservations)
+  reservationInfos: PopupReservationInfo[];
 }

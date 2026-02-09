@@ -7,43 +7,47 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { CreatePopupDto } from './dto/create-popup.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
 import { PopupService } from './popup.service';
+import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
+import { Public } from 'src/common/decorator/public.decorator';
+import { User } from 'src/user/decorator/user.decorator';
 
 @Controller('popup')
 export class PopupController {
   constructor(private readonly popupService: PopupService) {}
 
+  @Public()
   @Get()
   async getPopups() {
     const popupData = await this.popupService.findAll();
     return popupData;
   }
 
+  @Public()
   @Get('random')
   async getRandomPopups() {
     return await this.popupService.findRandomPopups();
   }
 
-  @Get('operation/:id')
-  async getPopupOperation(@Param('id') id: number) {
-    return await this.popupService.findPopupOperation(id);
+  @Public()
+  @Get('reservation/:id')
+  async getPopupReservation(@Param('id') id: number) {
+    return await this.popupService.findPopupReservation(id);
   }
 
+  @Public()
   @Get('detail/:id')
   async getPopupDetail(@Param('id') id: number) {
     return await this.popupService.findPopupDetail(id);
   }
 
-  @Get(':id')
-  getPopup(@Param('id') id: number) {
-    return this.popupService.findOne(id);
-  }
-
-  @Post()
-  create(@Body() createPopupDto: CreatePopupDto) {
-    return this.popupService.create(createPopupDto);
+  @Post('reservation')
+  async createReservation(
+    @User('id') userId: number,
+    @Body() createPopupReservationDto: CreatePopupReservationDto,
+  ) {
+    return this.popupService.createReservation(userId, createPopupReservationDto);
   }
 
   @Patch(':id')

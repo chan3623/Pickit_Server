@@ -5,14 +5,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import Joi from 'joi';
 import { join } from 'path';
 import { AuthModule } from './auth/auth.module';
-import { PopupOperationPolicyDay } from './popup/entities/popup-operation-policy-day.entity';
-import { PopupOperationPolicy } from './popup/entities/popup-operation-policy.entity';
 import { Popup } from './popup/entities/popup.entity';
 import { PopupModule } from './popup/popup.module';
 import { User } from './user/entities/user.entity';
 import { UserModule } from './user/user.module';
-import { PopupReservationSlot } from './popup/entities/popup-reservation-slot.entity';
+import { PopupDayInfo } from './popup/entities/popup-day-info.entity';
 import { PopupReservation } from './popup/entities/popup-reservation.entity';
+import { PopupReservationInfo } from './popup/entities/popup-reservation-info.entity';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './auth/guard/jwt-auth-guard';
 
 @Module({
   imports: [
@@ -34,11 +35,17 @@ import { PopupReservation } from './popup/entities/popup-reservation.entity';
       password: 'chn80114841',
       database: 'PICKIT',
       synchronize: true,
-      entities: [Popup, PopupOperationPolicy, PopupOperationPolicyDay, PopupReservationSlot, PopupReservation, User],
+      entities: [Popup, PopupDayInfo, PopupReservation, PopupReservationInfo, User],
     }),
     PopupModule,
     UserModule,
     AuthModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
   ],
 })
 export class AppModule {}
