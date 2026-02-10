@@ -87,7 +87,11 @@ export class AuthService {
       where: { email },
     });
 
-    if (!user || !user.password) {
+    if (!user) {
+      throw new BadRequestException('존재하지 않는 계정입니다.');
+    }
+
+    if (!user.password) {
       throw new BadRequestException('잘못된 로그인 정보입니다.');
     }
 
