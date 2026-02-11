@@ -1,19 +1,19 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import Joi from 'joi';
 import { join } from 'path';
 import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/guard/jwt-auth-guard';
+import { PopupDayInfo } from './popup/entities/popup-day-info.entity';
+import { PopupReservationInfo } from './popup/entities/popup-reservation-info.entity';
+import { PopupReservation } from './popup/entities/popup-reservation.entity';
 import { Popup } from './popup/entities/popup.entity';
 import { PopupModule } from './popup/popup.module';
 import { User } from './user/entities/user.entity';
 import { UserModule } from './user/user.module';
-import { PopupDayInfo } from './popup/entities/popup-day-info.entity';
-import { PopupReservation } from './popup/entities/popup-reservation.entity';
-import { PopupReservationInfo } from './popup/entities/popup-reservation-info.entity';
-import { APP_GUARD } from '@nestjs/core';
-import { JwtAuthGuard } from './auth/guard/jwt-auth-guard';
 
 @Module({
   imports: [
@@ -35,7 +35,13 @@ import { JwtAuthGuard } from './auth/guard/jwt-auth-guard';
       password: 'chn80114841',
       database: 'PICKIT',
       synchronize: true,
-      entities: [Popup, PopupDayInfo, PopupReservation, PopupReservationInfo, User],
+      entities: [
+        Popup,
+        PopupDayInfo,
+        PopupReservation,
+        PopupReservationInfo,
+        User,
+      ],
     }),
     PopupModule,
     UserModule,

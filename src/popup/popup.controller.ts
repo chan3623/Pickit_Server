@@ -7,11 +7,11 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { UpdatePopupDto } from './dto/update-popup.dto';
-import { PopupService } from './popup.service';
-import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
 import { Public } from 'src/common/decorator/public.decorator';
 import { User } from 'src/user/decorator/user.decorator';
+import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
+import { UpdatePopupDto } from './dto/update-popup.dto';
+import { PopupService } from './popup.service';
 
 @Controller('popup')
 export class PopupController {
@@ -47,7 +47,10 @@ export class PopupController {
     @User('id') userId: number,
     @Body() createPopupReservationDto: CreatePopupReservationDto,
   ) {
-    return this.popupService.createReservation(userId, createPopupReservationDto);
+    return this.popupService.createReservation(
+      userId,
+      createPopupReservationDto,
+    );
   }
 
   @Patch(':id')

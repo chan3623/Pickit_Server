@@ -26,6 +26,9 @@ export class PopupReservation extends BaseTable {
   @Column({ type: 'time' })
   time: string; // 10:00:00
 
+  @Column({ type: 'int', default: 0 })
+  currentCount: number;
+
   @ManyToOne(() => Popup, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'popupId' })
   popup: Popup;

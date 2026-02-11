@@ -1,17 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
-import { CreatePopupDto } from './dto/create-popup.dto';
-import { UpdatePopupDto } from './dto/update-popup.dto';
-import { Popup } from './entities/popup.entity';
-import { PopupDayInfo } from './entities/popup-day-info.entity';
-import { PopupReservation } from './entities/popup-reservation.entity';
-import { PopupReservationInfo } from './entities/popup-reservation-info.entity';
+import { DataSource, Repository } from 'typeorm';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
+import { UpdatePopupDto } from './dto/update-popup.dto';
+import { PopupDayInfo } from './entities/popup-day-info.entity';
+import { PopupReservationInfo } from './entities/popup-reservation-info.entity';
+import { PopupReservation } from './entities/popup-reservation.entity';
+import { Popup } from './entities/popup.entity';
 
 @Injectable()
 export class PopupService {
   constructor(
+    private readonly dataSource: DataSource,
+
     @InjectRepository(Popup)
     private readonly popupRepository: Repository<Popup>,
     @InjectRepository(PopupDayInfo)
@@ -115,7 +120,9 @@ export class PopupService {
     });
 
     if (!dayOfInfo) {
-      throw new NotFoundException('해당 팝업스토어의 요일별 시간이 존재하지 않습니다.');
+      throw new NotFoundException(
+        '해당 팝업스토어의 요일별 시간이 존재하지 않습니다.',
+      );
     }
 
     return {
@@ -136,39 +143,65 @@ export class PopupService {
     return popup;
   }
 
-  async createReservation(userId: number, createPopupReservationDto: CreatePopupReservationDto) {
-    const { popupId, date, time, phone, count } = createPopupReservationDto;
+  async createReservation(userId: number, dto: CreatePopupReservationDto) {
+    const { popupId, date, dayOfWeek, time, phone, count } = dto;
 
-    // 1. 예약 슬롯 조회
-    let reservation = await this.popupReservationRepository.findOne({
-      where: {
-        popupId,
-        date,
-        time,
+    return await this.dataSource.transaction(
+      'READ COMMITTED',
+      async (manager) => {
+        const dayInfo = await manager.findOne(PopupDayInfo, {
+          select: { capacityPerSlot: true },
+          where: { popupId, dayOfWeek },
+        });
+
+        if (!dayInfo) {
+          throw new BadRequestException('잘못된 예약 정보입니다.');
+        }
+
+        await manager
+          .createQueryBuilder()
+          .insert()
+          .into(PopupReservation)
+          .values({
+            popupId,
+            date,
+            time,
+            currentCount: 0,
+          })
+          .orIgnore()
+          .execute();
+
+        const reservation = await manager.findOneOrFail(PopupReservation, {
+          where: { popupId, date, time },
+        });
+
+        const updateResult = await manager
+          .createQueryBuilder()
+          .update(PopupReservation)
+          .set({
+            currentCount: () => `"currentCount" + ${count}`,
+          })
+          .where('id = :id', { id: reservation.id })
+          .andWhere(`"currentCount" + :count <= :capacity`, {
+            count,
+            capacity: dayInfo.capacityPerSlot,
+          })
+          .execute();
+
+        if (updateResult.affected === 0) {
+          throw new BadRequestException(
+            '예약 인원이 총 예약 가능 수를 초과했습니다.',
+          );
+        }
+
+        return await manager.save(PopupReservationInfo, {
+          reservationId: reservation.id,
+          quantity: count,
+          userId,
+          reserverPhone: phone,
+        });
       },
-    });
-
-    // 2. 슬롯이 없으면 생성
-    if (!reservation) {
-      reservation = await this.popupReservationRepository.save({
-        popupId,
-        date,
-        time,
-      });
-    }
-
-    // 3. 슬롯이 반드시 존재함 (타입 안정성 확보)
-    if (!reservation) {
-      throw new Error('예약 슬롯 생성 실패');
-    }
-
-    // 4. 예약자 정보 생성
-    return await this.popupReservationInfoRepository.save({
-      reservationId: reservation.id,
-      quantity: count,
-      userId,
-      reserverPhone: phone,
-    });
+    );
   }
 
   update(id: number, updatePopupDto: UpdatePopupDto) {

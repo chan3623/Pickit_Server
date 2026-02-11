@@ -1,23 +1,27 @@
-import { IsNotEmpty, IsNumber, IsString } from "class-validator";
+import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
 
-export class CreatePopupReservationDto{
-    @IsNumber()
-    @IsNotEmpty()
-    popupId: number;
+export class CreatePopupReservationDto {
+  @IsNumber()
+  @IsNotEmpty()
+  popupId: number;
 
-    @IsString()
-    @IsNotEmpty()
-    date: string;
+  @IsString()
+  @IsNotEmpty()
+  date: string;
 
-    @IsString()
-    @IsNotEmpty()
-    time: string;
+  @IsNumber()
+  @IsNotEmpty()
+  dayOfWeek: number;
 
-    @IsString()
-    @IsNotEmpty()
-    phone: string;
+  @IsString()
+  @IsNotEmpty()
+  time: string;
 
-    @IsNumber()
-    @IsNotEmpty()
-    count: number;
+  @IsString()
+  @IsNotEmpty()
+  phone: string;
+
+  @IsNumber()
+  @IsNotEmpty()
+  count: number;
 }
