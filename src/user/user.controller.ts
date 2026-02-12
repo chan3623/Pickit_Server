@@ -37,11 +37,6 @@ export class UserController {
     return this.userService.getMe(userId);
   }
 
-  @Get('reservation')
-  getUserReservations(@User('id') userId: number) {
-    return this.userService.findUserReservations(userId);
-  }
-
   @Get()
   findAll() {
     return this.userService.findAll();

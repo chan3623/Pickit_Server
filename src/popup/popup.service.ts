@@ -2,9 +2,10 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
 import { PopupDayInfo } from './entities/popup-day-info.entity';
@@ -27,7 +28,7 @@ export class PopupService {
     private readonly popupReservationInfoRepository: Repository<PopupReservationInfo>,
   ) {}
 
-  async findAll() {
+  async findPopups() {
     return await this.popupRepository
       .createQueryBuilder('popup')
       .orderBy('popup.id', 'ASC')
@@ -40,6 +41,61 @@ export class PopupService {
       .orderBy('RANDOM()')
       .limit(6)
       .getMany();
+  }
+
+  async findUserReservations(userId: number) {
+    const userReservationInfos = await this.popupReservationInfoRepository.find({
+      where: { userId },
+    });
+
+    if (!userReservationInfos.length) return [];
+
+    // 2. 예약 ID 배열 추출
+    const reservationIds = userReservationInfos.map(info => info.reservationId);
+
+    // 3. 예약 정보 조회 (PopupReservation)
+    const reservations = await this.popupReservationRepository.find({
+      where: { id: In(reservationIds) },
+    });
+
+    // 4. 팝업 ID 배열 추출
+    const popupIds = reservations.map(r => r.popupId);
+
+    // 5. 팝업 정보 조회
+    const popups = await this.popupRepository.find({
+      where: { id: In(popupIds) },
+    });
+
+    // 6. 데이터를 하나로 묶기
+    const result = userReservationInfos
+      .map(info => {
+        const reservation = reservations.find(r => r.id === info.reservationId);
+        if (!reservation) return null;
+
+        const popup = popups.find(p => p.id === reservation.popupId);
+        if (!popup) return null;
+
+        return {
+          popupId: popup.id,
+          title: popup.title,
+          address: popup.address,
+          tel: popup.tel,
+          imagePath: popup.imagePath,
+          reservationDate: reservation.date,
+          reservationTime: reservation.time,
+          quantity: info.quantity,
+          reserverPhone: info.reserverPhone,
+        };
+      })
+      .filter(Boolean)
+      // 7. 최근 예약순 정렬
+      .sort((a, b) => {
+        if (!a || !b) return 0;
+        const dateTimeA = new Date(`${a.reservationDate}T${a.reservationTime}`);
+        const dateTimeB = new Date(`${b.reservationDate}T${b.reservationTime}`);
+        return dateTimeB.getTime() - dateTimeA.getTime(); // 내림차순
+      });
+    return result;
   }
 
   async findPopupReservation(popupId: number) {
@@ -131,16 +187,40 @@ export class PopupService {
     };
   }
 
-  async findOne(id: number) {
-    const popup = await this.popupRepository.findOne({
-      where: { id },
+  async findManagerPopups(userId: number) {
+    const popups = await this.popupRepository.find({
+      where: { userId },
+      order: {
+        endDate: 'DESC',
+        startDate: 'DESC',
+        title: 'ASC',
+      },
     });
 
-    if (!popup) {
-      throw new NotFoundException('존재하지 않는 popup의 ID입니다.');
+    if (!popups) {
+      return [];
     }
 
-    return popup;
+    const popupIds = popups.map(popup => popup.id);
+
+    const popupDayInfo = await this.popupDayInfoRepository.find({
+      where: { popupId: In(popupIds) },
+    });
+
+    const result = popups.map(popup => {
+      const findPopupDayInfos = popupDayInfo.filter(d => d.popupId === popup.id);
+
+      if (findPopupDayInfos) {
+        return {
+          ...popup,
+          dayInfo: findPopupDayInfos,
+        };
+      } else {
+        return popup;
+      }
+    });
+
+    return result;
   }
 
   async createReservation(userId: number, dto: CreatePopupReservationDto) {

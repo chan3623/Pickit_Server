@@ -1,5 +1,6 @@
 import { BaseTable } from 'src/common/entities/base-table.entity';
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { User } from 'src/user/entities/user.entity';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity()
 export class Popup extends BaseTable {
@@ -32,4 +33,14 @@ export class Popup extends BaseTable {
 
   @Column()
   isFree: boolean;
+
+  @ManyToOne(() => User, (user) => user.popups, {
+    nullable: false,
+    onDelete: "CASCADE"
+  })
+  @JoinColumn({ name: "userId"})
+  user: User;
+
+  @Column()
+  userId: number;
 }

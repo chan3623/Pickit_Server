@@ -20,7 +20,7 @@ export class PopupController {
   @Public()
   @Get()
   async getPopups() {
-    const popupData = await this.popupService.findAll();
+    const popupData = await this.popupService.findPopups();
     return popupData;
   }
 
@@ -28,6 +28,11 @@ export class PopupController {
   @Get('random')
   async getRandomPopups() {
     return await this.popupService.findRandomPopups();
+  }
+
+  @Get('reservation')
+  getUserReservations(@User('id') userId: number) {
+    return this.popupService.findUserReservations(userId);
   }
 
   @Public()
@@ -40,6 +45,11 @@ export class PopupController {
   @Get('detail/:id')
   async getPopupDetail(@Param('id') id: number) {
     return await this.popupService.findPopupDetail(id);
+  }
+
+  @Get('manager')
+  async getManagerPopups(@User('id') userId: number) {
+    return await this.popupService.findManagerPopups(userId);
   }
 
   @Post('reservation')

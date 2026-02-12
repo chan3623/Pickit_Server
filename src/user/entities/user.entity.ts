@@ -1,6 +1,7 @@
 import { BaseTable } from 'src/common/entities/base-table.entity';
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { PopupReservationInfo } from '../../popup/entities/popup-reservation-info.entity';
+import { Popup } from 'src/popup/entities/popup.entity';
 
 export enum Role {
   systemAdmin,
@@ -31,4 +32,7 @@ export class User extends BaseTable {
     (reservationInfo) => reservationInfo.user,
   )
   reservationInfos: PopupReservationInfo[];
+
+  @OneToMany(() => Popup, (popup) => popup.user)
+  popups: Popup[];
 }

@@ -125,9 +125,14 @@ export class AuthService {
     );
   }
 
-  async login(token: string) {
+  async login(token: string, loginType: number) {
     const { email, password } = this.parseBasicToken(token);
     const user = await this.authenticate(email, password);
+
+    if(user.role !== loginType) {
+      throw new UnauthorizedException('잘못된 로그인 정보입니다');
+    }
+
     return {
       accessToken: await this.issueToken(user, false),
       refreshToken: await this.issueToken(user, true),
