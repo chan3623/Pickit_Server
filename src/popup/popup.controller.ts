@@ -6,10 +6,15 @@ import {
   Param,
   Patch,
   Post,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { FileNameEncodingInterceptor } from 'src/common/decorator/file.decorator';
 import { Public } from 'src/common/decorator/public.decorator';
 import { User } from 'src/user/decorator/user.decorator';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
+import { CreatePopupDto } from './dto/create-popup.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
 import { PopupService } from './popup.service';
 
@@ -52,12 +57,22 @@ export class PopupController {
     return await this.popupService.findManagerPopups(userId);
   }
 
+  @Post()
+  @UseInterceptors(FileInterceptor('image'), FileNameEncodingInterceptor)
+  async createPopup(
+    @User('id') userId: number,
+    @Body() createPopupDto: CreatePopupDto,
+    @UploadedFile() image: Express.Multer.File,
+  ) {
+    return await this.popupService.createPopup(userId, createPopupDto, image);
+  }
+
   @Post('reservation')
   async createReservation(
     @User('id') userId: number,
     @Body() createPopupReservationDto: CreatePopupReservationDto,
   ) {
-    return this.popupService.createReservation(
+    return await this.popupService.createReservation(
       userId,
       createPopupReservationDto,
     );

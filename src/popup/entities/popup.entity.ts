@@ -1,6 +1,12 @@
 import { BaseTable } from 'src/common/entities/base-table.entity';
 import { User } from 'src/user/entities/user.entity';
-import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 
 @Entity()
 export class Popup extends BaseTable {
@@ -20,6 +26,9 @@ export class Popup extends BaseTable {
   tel: string;
 
   @Column()
+  imageOriginalName: string;
+
+  @Column()
   imagePath: string;
 
   @Column()
@@ -36,9 +45,9 @@ export class Popup extends BaseTable {
 
   @ManyToOne(() => User, (user) => user.popups, {
     nullable: false,
-    onDelete: "CASCADE"
+    onDelete: 'CASCADE',
   })
-  @JoinColumn({ name: "userId"})
+  @JoinColumn({ name: 'userId' })
   user: User;
 
   @Column()

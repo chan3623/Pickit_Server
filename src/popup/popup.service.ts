@@ -2,17 +2,18 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import fs from 'fs';
+import path from 'path';
 import { DataSource, In, Repository } from 'typeorm';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
+import { CreatePopupDto } from './dto/create-popup.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
 import { PopupDayInfo } from './entities/popup-day-info.entity';
 import { PopupReservationInfo } from './entities/popup-reservation-info.entity';
 import { PopupReservation } from './entities/popup-reservation.entity';
 import { Popup } from './entities/popup.entity';
-
 @Injectable()
 export class PopupService {
   constructor(
@@ -44,14 +45,18 @@ export class PopupService {
   }
 
   async findUserReservations(userId: number) {
-    const userReservationInfos = await this.popupReservationInfoRepository.find({
-      where: { userId },
-    });
+    const userReservationInfos = await this.popupReservationInfoRepository.find(
+      {
+        where: { userId },
+      },
+    );
 
     if (!userReservationInfos.length) return [];
 
     // 2. 예약 ID 배열 추출
-    const reservationIds = userReservationInfos.map(info => info.reservationId);
+    const reservationIds = userReservationInfos.map(
+      (info) => info.reservationId,
+    );
 
     // 3. 예약 정보 조회 (PopupReservation)
     const reservations = await this.popupReservationRepository.find({
@@ -59,7 +64,7 @@ export class PopupService {
     });
 
     // 4. 팝업 ID 배열 추출
-    const popupIds = reservations.map(r => r.popupId);
+    const popupIds = reservations.map((r) => r.popupId);
 
     // 5. 팝업 정보 조회
     const popups = await this.popupRepository.find({
@@ -68,11 +73,13 @@ export class PopupService {
 
     // 6. 데이터를 하나로 묶기
     const result = userReservationInfos
-      .map(info => {
-        const reservation = reservations.find(r => r.id === info.reservationId);
+      .map((info) => {
+        const reservation = reservations.find(
+          (r) => r.id === info.reservationId,
+        );
         if (!reservation) return null;
 
-        const popup = popups.find(p => p.id === reservation.popupId);
+        const popup = popups.find((p) => p.id === reservation.popupId);
         if (!popup) return null;
 
         return {
@@ -201,14 +208,16 @@ export class PopupService {
       return [];
     }
 
-    const popupIds = popups.map(popup => popup.id);
+    const popupIds = popups.map((popup) => popup.id);
 
     const popupDayInfo = await this.popupDayInfoRepository.find({
       where: { popupId: In(popupIds) },
     });
 
-    const result = popups.map(popup => {
-      const findPopupDayInfos = popupDayInfo.filter(d => d.popupId === popup.id);
+    const result = popups.map((popup) => {
+      const findPopupDayInfos = popupDayInfo.filter(
+        (d) => d.popupId === popup.id,
+      );
 
       if (findPopupDayInfos) {
         return {
@@ -221,6 +230,86 @@ export class PopupService {
     });
 
     return result;
+  }
+
+  async createPopup(
+    userId: number,
+    createPopupDto: CreatePopupDto,
+    image: Express.Multer.File,
+  ) {
+    const {
+      title,
+      startDate,
+      endDate,
+      address,
+      description,
+      tel,
+      park,
+      isFree,
+    } = createPopupDto;
+
+    if (!image) {
+      throw new BadRequestException('이미지는 필수 항목입니다');
+    }
+
+    const tempFilePath = path.join(
+      process.cwd(),
+      'uploads',
+      'temp',
+      image.filename,
+    );
+    const popupDir = path.join(process.cwd(), 'uploads', 'popup');
+    const popupFilePath = path.join(popupDir, image.filename);
+
+    const imagePath = `/uploads/popup/${image.filename}`;
+    const imageOriginalName = image.originalname;
+
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+
+    let popup;
+    try {
+      popup = qr.manager.create(Popup, {
+        title,
+        startDate,
+        endDate,
+        address,
+        description,
+        tel,
+        park,
+        isFree,
+        userId,
+        imagePath,
+        imageOriginalName,
+      });
+
+      await qr.manager.save(popup);
+      await qr.commitTransaction();
+    } catch (e) {
+      await qr.rollbackTransaction();
+
+      if (fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+      }
+
+      throw e;
+    } finally {
+      await qr.release();
+    }
+
+    try {
+      if (!fs.existsSync(popupDir)) {
+        fs.mkdirSync(popupDir, { recursive: true });
+      }
+
+      fs.renameSync(tempFilePath, popupFilePath);
+    } catch (e) {
+      await this.popupRepository.delete(popup.id);
+      throw e;
+    }
+
+    return popup;
   }
 
   async createReservation(userId: number, dto: CreatePopupReservationDto) {
