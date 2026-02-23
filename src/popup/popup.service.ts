@@ -246,6 +246,7 @@ export class PopupService {
       tel,
       park,
       isFree,
+      dayInfos,
     } = createPopupDto;
 
     if (!image) {
@@ -269,6 +270,7 @@ export class PopupService {
     await qr.startTransaction();
 
     let popup;
+    let popupDayInfos;
     try {
       popup = qr.manager.create(Popup, {
         title,
@@ -284,7 +286,21 @@ export class PopupService {
         imageOriginalName,
       });
 
-      await qr.manager.save(popup);
+      const newPopup = await qr.manager.save(popup);
+
+      popupDayInfos = dayInfos.map((info) =>
+        qr.manager.create(PopupDayInfo, {
+          popupId: newPopup.id,
+          dayOfWeek: info.dayOfWeek,
+          openTime: info.openTime,
+          closeTime: info.closeTime,
+          slotMinute: info.slotMinute,
+          capacityPerSlot: info.capacityPerSlot,
+        }),
+      );
+
+      await qr.manager.save(PopupDayInfo, popupDayInfos);
+
       await qr.commitTransaction();
     } catch (e) {
       await qr.rollbackTransaction();
@@ -305,11 +321,16 @@ export class PopupService {
 
       fs.renameSync(tempFilePath, popupFilePath);
     } catch (e) {
+      await this.popupDayInfoRepository.delete({
+        popupId: popup.id,
+      });
+
       await this.popupRepository.delete(popup.id);
+
       throw e;
     }
 
-    return popup;
+    return { popup, popupDayInfos };
   }
 
   async createReservation(userId: number, dto: CreatePopupReservationDto) {
