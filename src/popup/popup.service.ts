@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -232,6 +233,22 @@ export class PopupService {
     return result;
   }
 
+  makeImageInfo(filename: string, originalname: string) {
+    const tempFilePath = path.join(process.cwd(), 'uploads', 'temp', filename);
+    const popupDir = path.join(process.cwd(), 'uploads', 'popup');
+    const popupFilePath = path.join(popupDir, filename);
+    const imagePath = `/uploads/popup/${filename}`;
+    const imageOriginalName = originalname;
+
+    return {
+      tempFilePath,
+      popupDir,
+      popupFilePath,
+      imagePath,
+      imageOriginalName,
+    };
+  }
+
   async createPopup(
     userId: number,
     createPopupDto: CreatePopupDto,
@@ -242,6 +259,7 @@ export class PopupService {
       startDate,
       endDate,
       address,
+      detailAddress,
       description,
       tel,
       park,
@@ -249,21 +267,30 @@ export class PopupService {
       dayInfos,
     } = createPopupDto;
 
-    if (!image) {
-      throw new BadRequestException('이미지는 필수 항목입니다');
+    if (!image || !image.filename || !image.originalname) {
+      throw new BadRequestException('이미지 정보가 잘못되었습니다.');
     }
 
-    const tempFilePath = path.join(
-      process.cwd(),
-      'uploads',
-      'temp',
-      image.filename,
-    );
-    const popupDir = path.join(process.cwd(), 'uploads', 'popup');
-    const popupFilePath = path.join(popupDir, image.filename);
+    const {
+      tempFilePath,
+      popupDir,
+      popupFilePath,
+      imagePath,
+      imageOriginalName,
+    } = this.makeImageInfo(image.filename, image.originalname);
 
-    const imagePath = `/uploads/popup/${image.filename}`;
-    const imageOriginalName = image.originalname;
+    if (!fs.existsSync(popupDir)) {
+      fs.mkdirSync(popupDir, { recursive: true });
+    }
+
+    try {
+      fs.renameSync(tempFilePath, popupFilePath);
+    } catch {
+      if (fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+      }
+      throw new BadRequestException('이미지 이동에 실패했습니다');
+    }
 
     const qr = this.dataSource.createQueryRunner();
     await qr.connect();
@@ -277,6 +304,7 @@ export class PopupService {
         startDate,
         endDate,
         address,
+        detailAddress,
         description,
         tel,
         park,
@@ -305,31 +333,14 @@ export class PopupService {
     } catch (e) {
       await qr.rollbackTransaction();
 
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
+      if (fs.existsSync(popupFilePath)) {
+        fs.unlinkSync(popupFilePath);
       }
-
-      throw e;
+      console.log(e);
+      throw new InternalServerErrorException('팝업스토어 등록에 실패했습니다.');
     } finally {
       await qr.release();
     }
-
-    try {
-      if (!fs.existsSync(popupDir)) {
-        fs.mkdirSync(popupDir, { recursive: true });
-      }
-
-      fs.renameSync(tempFilePath, popupFilePath);
-    } catch (e) {
-      await this.popupDayInfoRepository.delete({
-        popupId: popup.id,
-      });
-
-      await this.popupRepository.delete(popup.id);
-
-      throw e;
-    }
-
     return { popup, popupDayInfos };
   }
 
@@ -394,11 +405,121 @@ export class PopupService {
     );
   }
 
-  update(id: number, updatePopupDto: UpdatePopupDto) {
-    return `This action updates a #${id} popup`;
-  }
+  async updatePopup(
+    userId: number,
+    updatePopupDto: UpdatePopupDto,
+    image?: Express.Multer.File,
+  ) {
+    const {
+      id,
+      title,
+      startDate,
+      endDate,
+      address,
+      detailAddress,
+      description,
+      tel,
+      park,
+      isFree,
+      dayInfos,
+    } = updatePopupDto;
 
-  remove(id: number) {
-    return `This action removes a #${id} popup`;
+    let imageInfo;
+    let oldImagePath;
+
+    if (image && image.filename && image.originalname) {
+      imageInfo = this.makeImageInfo(image.filename, image.originalname);
+
+      if (!fs.existsSync(imageInfo.popupDir)) {
+        fs.mkdirSync(imageInfo.popupDir, { recursive: true });
+      }
+
+      try {
+        fs.renameSync(imageInfo.tempFilePath, imageInfo.popupFilePath);
+      } catch {
+        if (fs.existsSync(imageInfo.tempFilePath)) {
+          fs.unlinkSync(imageInfo.tempFilePath);
+        }
+        throw new BadRequestException('이미지 이동에 실패했습니다');
+      }
+    }
+
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+
+    try {
+      const findPopup = await qr.manager.findOne(Popup, { where: { id } });
+
+      if (!findPopup) {
+        throw new BadRequestException('존재하지 않는 팝업입니다.');
+      }
+
+      oldImagePath = path.join(process.cwd(), findPopup.imagePath);
+
+      await qr.manager.update(
+        Popup,
+        { id },
+        {
+          title,
+          startDate,
+          endDate,
+          address,
+          detailAddress,
+          description,
+          tel,
+          park,
+          isFree,
+          userId,
+          imagePath: image ? imageInfo.imagePath : findPopup.imagePath,
+          imageOriginalName: image
+            ? imageInfo.imageOriginalName
+            : findPopup.imageOriginalName,
+        },
+      );
+
+      const findDayInfo = await qr.manager.find(PopupDayInfo, {
+        where: { popupId: id },
+      });
+
+      if (findDayInfo) {
+        await qr.manager.delete(PopupDayInfo, { popupId: id });
+      }
+
+      const popupDayInfos = dayInfos.map((info) =>
+        qr.manager.create(PopupDayInfo, {
+          popupId: id,
+          dayOfWeek: info.dayOfWeek,
+          openTime: info.openTime,
+          closeTime: info.closeTime,
+          slotMinute: info.slotMinute,
+          capacityPerSlot: info.capacityPerSlot,
+        }),
+      );
+
+      await qr.manager.save(PopupDayInfo, popupDayInfos);
+
+      await qr.commitTransaction();
+    } catch (e) {
+      await qr.rollbackTransaction();
+
+      if (image && fs.existsSync(imageInfo.popupFilePath)) {
+        fs.unlinkSync(imageInfo.popupFilePath);
+      }
+      console.log('e : ', e);
+    } finally {
+      await qr.release();
+    }
+
+    if (image && fs.existsSync(oldImagePath)) {
+      fs.unlinkSync(oldImagePath);
+    }
+
+    const result = await this.popupRepository.findOne({
+      where: { id },
+      relations: ['dayInfos'],
+    });
+
+    return result;
   }
 }

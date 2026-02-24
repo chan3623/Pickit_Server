@@ -1,10 +1,23 @@
 import { BaseTable } from 'src/common/entities/base-table.entity';
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+import { Popup } from './popup.entity';
 
 @Entity('popup_day_info')
 export class PopupDayInfo extends BaseTable {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @ManyToOne(() => Popup, (popup) => popup.dayInfos, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'popupId' })
+  popup: Popup;
 
   @Column({ name: 'popupId', type: 'int' })
   popupId: number;

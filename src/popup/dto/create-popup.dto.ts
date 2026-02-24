@@ -33,13 +33,19 @@ export class CreatePopupDto {
   title: string;
 
   @IsDateString()
+  @IsNotEmpty()
   startDate: string;
 
   @IsDateString()
+  @IsNotEmpty()
   endDate: string;
 
   @IsString()
+  @IsNotEmpty()
   address: string;
+
+  @IsString()
+  detailAddress: string;
 
   @IsOptional()
   @IsString()
@@ -47,20 +53,24 @@ export class CreatePopupDto {
 
   @IsString()
   @Matches(/^01[0-9]{8,9}$/)
+  @IsNotEmpty()
   tel: string;
 
-  @Transform(({ value }) => value === 'true')
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
+  @IsNotEmpty()
   park: boolean;
 
-  @Transform(({ value }) => value === 'true')
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
+  @IsNotEmpty()
   isFree: boolean;
 
   @Transform(({ value }) =>
     typeof value === 'string' ? JSON.parse(value) : value,
   )
   @IsArray()
+  @IsNotEmpty()
   @ValidateNested({ each: true })
   @Type(() => DayInfoDto)
   dayInfos: DayInfoDto[];

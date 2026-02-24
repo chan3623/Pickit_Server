@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   Patch,
@@ -79,12 +78,17 @@ export class PopupController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updatePopupDto: UpdatePopupDto) {
-    return this.popupService.update(+id, updatePopupDto);
+  @UseInterceptors(FileInterceptor('image'), FileNameEncodingInterceptor)
+  async updatePopup(
+    @User('id') userId: number,
+    @Body() updatePopupDto: UpdatePopupDto,
+    @UploadedFile() image?: Express.Multer.File,
+  ) {
+    return await this.popupService.updatePopup(userId, updatePopupDto, image);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.popupService.remove(+id);
-  }
+  // @Delete(':id')
+  // remove(@Param('id') id: string) {
+  //   return this.popupService.remove(+id);
+  // }
 }

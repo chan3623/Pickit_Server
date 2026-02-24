@@ -5,8 +5,10 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { PopupDayInfo } from './popup-day-info.entity';
 
 @Entity()
 export class Popup extends BaseTable {
@@ -18,6 +20,9 @@ export class Popup extends BaseTable {
 
   @Column()
   address: string;
+
+  @Column()
+  detailAddress: string;
 
   @Column()
   description: string;
@@ -42,6 +47,11 @@ export class Popup extends BaseTable {
 
   @Column()
   isFree: boolean;
+
+  @OneToMany(() => PopupDayInfo, (dayInfo) => dayInfo.popup, {
+    cascade: true,
+  })
+  dayInfos: PopupDayInfo[];
 
   @ManyToOne(() => User, (user) => user.popups, {
     nullable: false,
