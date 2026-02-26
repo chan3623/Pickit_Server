@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import Joi from 'joi';
@@ -43,6 +44,7 @@ import { UserModule } from './user/user.module';
         User,
       ],
     }),
+    ScheduleModule.forRoot(),
     PopupModule,
     UserModule,
     AuthModule,

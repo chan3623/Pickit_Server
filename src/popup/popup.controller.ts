@@ -14,7 +14,9 @@ import { Public } from 'src/common/decorator/public.decorator';
 import { User } from 'src/user/decorator/user.decorator';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
 import { CreatePopupDto } from './dto/create-popup.dto';
+import { UpdatePopupStatusDto } from './dto/update-popup-status.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
+import { UpdateUserPopupStatusDto } from './dto/update-user-popup-status.dto';
 import { PopupService } from './popup.service';
 
 @Controller('popup')
@@ -77,7 +79,7 @@ export class PopupController {
     );
   }
 
-  @Patch(':id')
+  @Patch()
   @UseInterceptors(FileInterceptor('image'), FileNameEncodingInterceptor)
   async updatePopup(
     @User('id') userId: number,
@@ -85,6 +87,28 @@ export class PopupController {
     @UploadedFile() image?: Express.Multer.File,
   ) {
     return await this.popupService.updatePopup(userId, updatePopupDto, image);
+  }
+
+  @Patch('cancel-user')
+  async cancelUserReservation(
+    @User('id') userId: number,
+    @Body() updateUserPopupStatusDto: UpdateUserPopupStatusDto,
+  ) {
+    return await this.popupService.cancelUserReservation(
+      userId,
+      updateUserPopupStatusDto,
+    );
+  }
+
+  @Patch('early-close')
+  async popupEarlyClosed(
+    @User('id') userId: number,
+    @Body() updatePopupStatusDto: UpdatePopupStatusDto,
+  ) {
+    return await this.popupService.popupEarlyClosed(
+      userId,
+      updatePopupStatusDto,
+    );
   }
 
   // @Delete(':id')

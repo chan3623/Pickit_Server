@@ -4,17 +4,23 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import fs from 'fs';
 import path from 'path';
 import { DataSource, In, Repository } from 'typeorm';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
 import { CreatePopupDto } from './dto/create-popup.dto';
+import { UpdatePopupStatusDto } from './dto/update-popup-status.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
+import { UpdateUserPopupStatusDto } from './dto/update-user-popup-status.dto';
 import { PopupDayInfo } from './entities/popup-day-info.entity';
-import { PopupReservationInfo } from './entities/popup-reservation-info.entity';
+import {
+  PopupReservationInfo,
+  ReservationStatus,
+} from './entities/popup-reservation-info.entity';
 import { PopupReservation } from './entities/popup-reservation.entity';
-import { Popup } from './entities/popup.entity';
+import { Popup, PopupStatus } from './entities/popup.entity';
 @Injectable()
 export class PopupService {
   constructor(
@@ -84,10 +90,12 @@ export class PopupService {
         if (!popup) return null;
 
         return {
+          id: reservation.id,
           popupId: popup.id,
           title: popup.title,
           address: popup.address,
           tel: popup.tel,
+          status: info.status,
           imagePath: popup.imagePath,
           reservationDate: reservation.date,
           reservationTime: reservation.time,
@@ -521,5 +529,89 @@ export class PopupService {
     });
 
     return result;
+  }
+
+  async cancelUserReservation(
+    userId: number,
+    updateUserPopupStatusDto: UpdateUserPopupStatusDto,
+  ) {
+    const { id, status } = updateUserPopupStatusDto;
+
+    if (status !== ReservationStatus.CANCELED_BY_USER) {
+      throw new BadRequestException('상태 값이 잘못되었습니다.');
+    }
+
+    const findUserReservation =
+      await this.popupReservationInfoRepository.findOne({
+        where: { id, userId, status: ReservationStatus.RESERVED },
+      });
+
+    if (!findUserReservation) {
+      throw new BadRequestException('존재하지 않는 예약내역입니다.');
+    }
+
+    await this.popupReservationInfoRepository.update(
+      { id, userId },
+      { status },
+    );
+
+    const findReservation = await this.popupReservationRepository.findOne({
+      where: { id: findUserReservation.reservationId },
+    });
+
+    if (!findReservation) {
+      throw new BadRequestException('존재하지 않는 예약내역입니다.');
+    }
+
+    const newCurrentCount =
+      Number(findReservation.currentCount) -
+      Number(findUserReservation.quantity);
+
+    await this.popupReservationRepository.update(
+      { id: findUserReservation.reservationId },
+      { currentCount: newCurrentCount },
+    );
+
+    const newUserReservation =
+      await this.popupReservationInfoRepository.findOne({
+        where: { id, userId },
+      });
+
+    return newUserReservation;
+  }
+
+  async popupEarlyClosed(
+    userId: number,
+    updatePopupStatusDto: UpdatePopupStatusDto,
+  ) {
+    const { id, status } = updatePopupStatusDto;
+
+    if (status !== PopupStatus.EARLY_CLOSED) {
+      throw new BadRequestException('상태 값이 잘못되었습니다.');
+    }
+
+    const findPopup = await this.popupRepository.findOne({ where: { id } });
+
+    if (!findPopup) {
+      throw new BadRequestException('존재하지 않는 팝업스토어입니다.');
+    }
+
+    await this.popupRepository.update({ id }, { status });
+
+    const updatePopup = await this.popupRepository.findOne({ where: { id } });
+
+    return updatePopup;
+  }
+
+  @Cron('*/5 * * * *')
+  async autoCompleteReservations() {
+    await this.dataSource.query(`
+    UPDATE popup_reservation_info pri
+    SET status = 'COMPLETED'
+    FROM popup_reservation pr
+    WHERE pri."reservationId" = pr.id
+      AND pri.status = 'RESERVED'
+      AND (pr.date::timestamp + pr.time) <= NOW()
+  `);
   }
 }

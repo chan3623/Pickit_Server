@@ -2,6 +2,7 @@ import { BaseTable } from 'src/common/entities/base-table.entity';
 import {
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   OneToMany,
@@ -12,6 +13,7 @@ import { PopupReservationInfo } from './popup-reservation-info.entity';
 import { Popup } from './popup.entity';
 
 @Entity('popup_reservation')
+@Index('idx_pr_date_time', ['date', 'time'])
 @Unique(['popupId', 'date', 'time'])
 export class PopupReservation extends BaseTable {
   @PrimaryGeneratedColumn()

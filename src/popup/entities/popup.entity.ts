@@ -10,6 +10,13 @@ import {
 } from 'typeorm';
 import { PopupDayInfo } from './popup-day-info.entity';
 
+export enum PopupStatus {
+  ACTIVE = 'ACTIVE',
+  EARLY_CLOSED = 'EARLY_CLOSED',
+  CANCELED = 'CANCELED',
+  CLOSED = 'CLOSED',
+}
+
 @Entity()
 export class Popup extends BaseTable {
   @PrimaryGeneratedColumn()
@@ -36,10 +43,10 @@ export class Popup extends BaseTable {
   @Column()
   imagePath: string;
 
-  @Column()
+  @Column({ type: 'date' })
   startDate: Date;
 
-  @Column()
+  @Column({ type: 'date' })
   endDate: Date;
 
   @Column()
@@ -47,6 +54,13 @@ export class Popup extends BaseTable {
 
   @Column()
   isFree: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: PopupStatus,
+    default: PopupStatus.ACTIVE,
+  })
+  status: PopupStatus;
 
   @OneToMany(() => PopupDayInfo, (dayInfo) => dayInfo.popup, {
     cascade: true,
