@@ -14,6 +14,7 @@ import { Public } from 'src/common/decorator/public.decorator';
 import { User } from 'src/user/decorator/user.decorator';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
 import { CreatePopupDto } from './dto/create-popup.dto';
+import { UpdatePopupCancelDto } from './dto/update-popup-cancel.dto';
 import { UpdatePopupStatusDto } from './dto/update-popup-status.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
 import { UpdateUserPopupStatusDto } from './dto/update-user-popup-status.dto';
@@ -109,6 +110,14 @@ export class PopupController {
       userId,
       updatePopupStatusDto,
     );
+  }
+
+  @Patch('cancel')
+  async popupCancel(
+    @User('id') userId: number,
+    @Body() updatePopupCancelDto: UpdatePopupCancelDto,
+  ) {
+    return await this.popupService.popupCancel(userId, updatePopupCancelDto);
   }
 
   // @Delete(':id')

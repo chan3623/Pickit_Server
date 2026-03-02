@@ -11,6 +11,7 @@ import path from 'path';
 import { DataSource, In, Repository } from 'typeorm';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
 import { CreatePopupDto } from './dto/create-popup.dto';
+import { UpdatePopupCancelDto } from './dto/update-popup-cancel.dto';
 import { UpdatePopupStatusDto } from './dto/update-popup-status.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
 import { UpdateUserPopupStatusDto } from './dto/update-user-popup-status.dto';
@@ -60,25 +61,20 @@ export class PopupService {
 
     if (!userReservationInfos.length) return [];
 
-    // 2. 예약 ID 배열 추출
     const reservationIds = userReservationInfos.map(
       (info) => info.reservationId,
     );
 
-    // 3. 예약 정보 조회 (PopupReservation)
     const reservations = await this.popupReservationRepository.find({
       where: { id: In(reservationIds) },
     });
 
-    // 4. 팝업 ID 배열 추출
     const popupIds = reservations.map((r) => r.popupId);
 
-    // 5. 팝업 정보 조회
     const popups = await this.popupRepository.find({
       where: { id: In(popupIds) },
     });
 
-    // 6. 데이터를 하나로 묶기
     const result = userReservationInfos
       .map((info) => {
         const reservation = reservations.find(
@@ -104,7 +100,6 @@ export class PopupService {
         };
       })
       .filter(Boolean)
-      // 7. 최근 예약순 정렬
       .sort((a, b) => {
         if (!a || !b) return 0;
         const dateTimeA = new Date(`${a.reservationDate}T${a.reservationTime}`);
@@ -590,7 +585,9 @@ export class PopupService {
       throw new BadRequestException('상태 값이 잘못되었습니다.');
     }
 
-    const findPopup = await this.popupRepository.findOne({ where: { id } });
+    const findPopup = await this.popupRepository.findOne({
+      where: { id, userId },
+    });
 
     if (!findPopup) {
       throw new BadRequestException('존재하지 않는 팝업스토어입니다.');
@@ -601,6 +598,89 @@ export class PopupService {
     const updatePopup = await this.popupRepository.findOne({ where: { id } });
 
     return updatePopup;
+  }
+
+  async popupCancel(
+    userId: number,
+    updatePopupCancelDto: UpdatePopupCancelDto,
+  ) {
+    const { id, status, date, time } = updatePopupCancelDto;
+
+    if (status !== PopupStatus.CANCELED) {
+      throw new BadRequestException('status 값이 잘못되었습니다.');
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const popup = await queryRunner.manager.findOne(Popup, {
+        where: { id, userId },
+      });
+
+      if (!popup) {
+        throw new BadRequestException('존재하지 않는 팝업스토어입니다.');
+      }
+
+      if (popup.status !== PopupStatus.ACTIVE) {
+        throw new BadRequestException('이미 취소되었거나 운영 중이 아닙니다.');
+      }
+
+      // 1️⃣ 팝업 상태 변경
+      await queryRunner.manager.update(
+        Popup,
+        { id, userId, status: PopupStatus.ACTIVE },
+        { status: PopupStatus.CANCELED },
+      );
+
+      // 2️⃣ 취소 시점 이후 예약 상태 변경
+      await queryRunner.manager
+        .createQueryBuilder()
+        .update(PopupReservationInfo)
+        .set({ status: ReservationStatus.CANCELED_BY_POPUP })
+        .where(
+          `"reservationId" IN (
+          SELECT r."id"
+          FROM "popup_reservation" r
+          WHERE r."popupId" = :id
+          AND (r."date" + r."time") >= (CAST(:date AS date) + CAST(:time AS time))
+        )`,
+        )
+        .andWhere('"status" = :reservedStatus')
+        .setParameters({
+          id,
+          date,
+          time,
+          reservedStatus: ReservationStatus.RESERVED,
+        })
+        .execute();
+
+      // 3️⃣ 해당 reservation들의 currentCount = 0 처리
+      await queryRunner.manager
+        .createQueryBuilder()
+        .update(PopupReservation)
+        .set({ currentCount: 0 })
+        .where(
+          `"popupId" = :id
+         AND ("date" + "time") >= (CAST(:date AS date) + CAST(:time AS time))`,
+        )
+        .setParameters({
+          id,
+          date,
+          time,
+        })
+        .execute();
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+
+    return await this.popupRepository.findOne({ where: { id } });
   }
 
   @Cron('*/5 * * * *')
