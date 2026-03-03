@@ -8,9 +8,11 @@ import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import fs from 'fs';
 import path from 'path';
+import { User } from 'src/user/entities/user.entity';
 import { DataSource, In, Repository } from 'typeorm';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
 import { CreatePopupDto } from './dto/create-popup.dto';
+import { ReservationManageQueryDto } from './dto/reservation-manage-query.dto';
 import { UpdatePopupCancelDto } from './dto/update-popup-cancel.dto';
 import { UpdatePopupStatusDto } from './dto/update-popup-status.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
@@ -35,6 +37,8 @@ export class PopupService {
     private readonly popupReservationRepository: Repository<PopupReservation>,
     @InjectRepository(PopupReservationInfo)
     private readonly popupReservationInfoRepository: Repository<PopupReservationInfo>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   async findPopups() {
@@ -234,6 +238,189 @@ export class PopupService {
     });
 
     return result;
+  }
+
+  getServerNowDateAndTime() {
+    const newDate = new Date();
+
+    const YEAR = newDate.getFullYear();
+    const MONTH = String(newDate.getMonth() + 1).padStart(2, '0');
+    const DATE = String(newDate.getDate()).padStart(2, '0');
+
+    const SERVER_DATE = `${YEAR}-${MONTH}-${DATE}`;
+
+    const HOUR = String(newDate.getHours()).padStart(2, '0');
+    const MINUTE = String(newDate.getMinutes()).padStart(2, '0');
+
+    const SERVER_TIME = `${HOUR}:${MINUTE}:00`;
+
+    return { SERVER_DATE, SERVER_TIME };
+  }
+
+  async findReservationManage(
+    userId: number,
+    popupId: number,
+    query: ReservationManageQueryDto,
+  ) {
+    const { status, date, email, phone } = query;
+
+    const popup = await this.popupRepository.findOne({
+      where: { id: popupId, userId },
+    });
+
+    if (!popup) {
+      throw new BadRequestException('존재하지 않는 팝업스토어입니다.');
+    }
+
+    /**
+     * =========================
+     * 1️⃣ 전체 통계 집계
+     * =========================
+     */
+    const totalStats = await this.popupReservationInfoRepository
+      .createQueryBuilder('pri')
+      .innerJoin('pri.reservations', 'pr')
+      .select([
+        `COUNT(*) FILTER (WHERE pri.status != :cancelPopup) AS "totalReservationCount"`,
+        `COUNT(*) FILTER (WHERE pri.status = :reserved) AS "afterReservationCount"`,
+        `COUNT(*) FILTER (WHERE pri.status = :cancelUser) AS "userCancelCount"`,
+        `COUNT(*) FILTER (WHERE pri.status = :completed) AS "visitCount"`,
+      ])
+      .where('pr.popupId = :popupId', { popupId })
+      .setParameters({
+        cancelPopup: ReservationStatus.CANCELED_BY_POPUP,
+        reserved: ReservationStatus.RESERVED,
+        cancelUser: ReservationStatus.CANCELED_BY_USER,
+        completed: ReservationStatus.COMPLETED,
+      })
+      .getRawOne();
+
+    /**
+     * =========================
+     * 2️⃣ 선택 날짜 통계 집계
+     * =========================
+     */
+    const selectedStats = await this.popupReservationInfoRepository
+      .createQueryBuilder('pri')
+      .innerJoin('pri.reservations', 'pr')
+      .select([
+        `COUNT(*) FILTER (WHERE pri.status != :cancelPopup) AS "selectedReservationCount"`,
+        `COUNT(*) FILTER (WHERE pri.status = :reserved) AS "selectedAfterReservationCount"`,
+        `COUNT(*) FILTER (WHERE pri.status = :cancelUser) AS "selectedCancelCount"`,
+        `COUNT(*) FILTER (WHERE pri.status = :completed) AS "selectedVisitCount"`,
+      ])
+      .where('pr.popupId = :popupId', { popupId })
+      .andWhere('pr.date = :date', { date })
+      .setParameters({
+        cancelPopup: ReservationStatus.CANCELED_BY_POPUP,
+        reserved: ReservationStatus.RESERVED,
+        cancelUser: ReservationStatus.CANCELED_BY_USER,
+        completed: ReservationStatus.COMPLETED,
+      })
+      .getRawOne();
+
+    /**
+     * =========================
+     * 3️⃣ 선택 날짜 예약 목록 조회 (필터 적용)
+     * =========================
+     */
+    const qb = this.popupReservationRepository
+      .createQueryBuilder('pr')
+      .leftJoin('popup_reservation_info', 'pri', 'pri.reservationId = pr.id')
+      .leftJoin('user', 'u', 'u.id = pri.userId')
+      .select([
+        'pr.id AS pr_id',
+        "TO_CHAR(pr.date, 'YYYY-MM-DD') AS pr_date",
+        "TO_CHAR(pr.time, 'HH24:MI') AS pr_time",
+
+        'pri.id AS pri_id',
+        'pri.status AS pri_status',
+        'pri.userId AS pri_userId',
+        'pri.quantity AS pri_quantity',
+        'pri."reserverPhone" AS "pri_reserverPhone"',
+        'u.email AS u_email',
+      ])
+      .where('pr.popupId = :popupId', { popupId })
+      .andWhere('pr.date = :date', { date })
+      .andWhere('pri.status != :cancelPopup', {
+        cancelPopup: ReservationStatus.CANCELED_BY_POPUP,
+      });
+
+    /**
+     * 🔎 선택 필터 동적 적용
+     */
+    if (status) {
+      let changeStatus;
+      if (status === 'COMPLETED') {
+        changeStatus = ReservationStatus.COMPLETED;
+      } else if (status === 'RESERVED') {
+        changeStatus = ReservationStatus.RESERVED;
+      } else if (status === 'CANCELED_BY_USER') {
+        changeStatus = ReservationStatus.CANCELED_BY_USER;
+      }
+      qb.andWhere('pri.status = :changeStatus', { changeStatus });
+    }
+
+    if (email) {
+      qb.andWhere('u.email LIKE :email', {
+        email: `%${email}%`,
+      });
+    }
+
+    if (phone) {
+      qb.andWhere('pri."reserverPhone" LIKE :phone', {
+        phone: `%${phone}%`,
+      });
+    }
+
+    qb.orderBy('pr.date', 'ASC').addOrderBy('pr.time', 'ASC');
+
+    const rawData = await qb.getRawMany();
+
+    /**
+     * =========================
+     * 4️⃣ 데이터 그룹핑
+     * =========================
+     */
+    const reservationMap = new Map();
+
+    for (const row of rawData) {
+      if (!reservationMap.has(row.pr_id)) {
+        reservationMap.set(row.pr_id, {
+          id: row.pr_id,
+          date: row.pr_date,
+          time: row.pr_time,
+          reservationInfos: [],
+        });
+      }
+
+      if (row.pri_id) {
+        reservationMap.get(row.pr_id).reservationInfos.push({
+          id: row.pri_id,
+          status: row.pri_status,
+          userId: row.pri_userId,
+          quantity: row.pri_quantity,
+          reserverPhone: row.pri_reserverPhone,
+          userEmail: row.u_email,
+        });
+      }
+    }
+
+    return {
+      totalReservationCount: Number(totalStats.totalReservationCount),
+      afterReservationCount: Number(totalStats.afterReservationCount),
+      userCancelCount: Number(totalStats.userCancelCount),
+      visitCount: Number(totalStats.visitCount),
+
+      selectedReservationCount: Number(selectedStats.selectedReservationCount),
+      selectedAfterReservationCount: Number(
+        selectedStats.selectedAfterReservationCount,
+      ),
+      selectedCancelCount: Number(selectedStats.selectedCancelCount),
+      selectedVisitCount: Number(selectedStats.selectedVisitCount),
+
+      popupReservations: Array.from(reservationMap.values()),
+    };
   }
 
   makeImageInfo(filename: string, originalname: string) {

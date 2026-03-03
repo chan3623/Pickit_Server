@@ -3,6 +3,7 @@ import { MulterModule } from '@nestjs/platform-express';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { diskStorage } from 'multer';
 import { join } from 'path';
+import { User } from 'src/user/entities/user.entity';
 import { PopupDayInfo } from './entities/popup-day-info.entity';
 import { PopupReservationInfo } from './entities/popup-reservation-info.entity';
 import { PopupReservation } from './entities/popup-reservation.entity';
@@ -17,6 +18,7 @@ import { PopupService } from './popup.service';
       PopupDayInfo,
       PopupReservation,
       PopupReservationInfo,
+      User,
     ]),
     MulterModule.register({
       storage: diskStorage({

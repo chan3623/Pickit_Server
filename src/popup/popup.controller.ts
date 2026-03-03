@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import { Public } from 'src/common/decorator/public.decorator';
 import { User } from 'src/user/decorator/user.decorator';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
 import { CreatePopupDto } from './dto/create-popup.dto';
+import { ReservationManageQueryDto } from './dto/reservation-manage-query.dto';
 import { UpdatePopupCancelDto } from './dto/update-popup-cancel.dto';
 import { UpdatePopupStatusDto } from './dto/update-popup-status.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
@@ -57,6 +59,19 @@ export class PopupController {
   @Get('manager')
   async getManagerPopups(@User('id') userId: number) {
     return await this.popupService.findManagerPopups(userId);
+  }
+
+  @Get('reservationManage/:id')
+  async getReservationManage(
+    @User('id') userId: number,
+    @Param('id') popupId: number,
+    @Query() query: ReservationManageQueryDto,
+  ) {
+    return await this.popupService.findReservationManage(
+      userId,
+      popupId,
+      query,
+    );
   }
 
   @Post()
@@ -119,9 +134,4 @@ export class PopupController {
   ) {
     return await this.popupService.popupCancel(userId, updatePopupCancelDto);
   }
-
-  // @Delete(':id')
-  // remove(@Param('id') id: string) {
-  //   return this.popupService.remove(+id);
-  // }
 }
