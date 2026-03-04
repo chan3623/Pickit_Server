@@ -3,6 +3,7 @@ import { MulterModule } from '@nestjs/platform-express';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { diskStorage } from 'multer';
 import { join } from 'path';
+import { NotificationModule } from 'src/notifications/notifications.module';
 import { User } from 'src/user/entities/user.entity';
 import { PopupDayInfo } from './entities/popup-day-info.entity';
 import { PopupReservationInfo } from './entities/popup-reservation-info.entity';
@@ -51,6 +52,7 @@ import { PopupService } from './popup.service';
         cb(null, true);
       },
     }),
+    NotificationModule,
   ],
   controllers: [PopupController],
   providers: [PopupService],

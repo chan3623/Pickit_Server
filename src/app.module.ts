@@ -8,6 +8,8 @@ import Joi from 'joi';
 import { join } from 'path';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guard/jwt-auth-guard';
+import { Notifications } from './notifications/entities/notifications.entity';
+import { NotificationModule } from './notifications/notifications.module';
 import { PopupDayInfo } from './popup/entities/popup-day-info.entity';
 import { PopupReservationInfo } from './popup/entities/popup-reservation-info.entity';
 import { PopupReservation } from './popup/entities/popup-reservation.entity';
@@ -42,12 +44,14 @@ import { UserModule } from './user/user.module';
         PopupReservation,
         PopupReservationInfo,
         User,
+        Notifications,
       ],
     }),
     ScheduleModule.forRoot(),
     PopupModule,
     UserModule,
     AuthModule,
+    NotificationModule,
   ],
   providers: [
     {

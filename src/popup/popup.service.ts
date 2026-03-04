@@ -8,6 +8,7 @@ import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import fs from 'fs';
 import path from 'path';
+import { NotificationService } from 'src/notifications/notifications.service';
 import { User } from 'src/user/entities/user.entity';
 import { DataSource, In, Repository } from 'typeorm';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
@@ -39,6 +40,7 @@ export class PopupService {
     private readonly popupReservationInfoRepository: Repository<PopupReservationInfo>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private notificationService: NotificationService,
   ) {}
 
   async findPopups() {
@@ -821,6 +823,19 @@ export class PopupService {
         { status: PopupStatus.CANCELED },
       );
 
+      // 2️⃣ 취소 시점 이후 예약 정보 조회
+      const reservations = await queryRunner.manager
+        .createQueryBuilder(PopupReservationInfo, 'pri')
+        .innerJoinAndSelect('pri.reservations', 'r')
+        .where(
+          `r.popupId = :id AND (r.date + r.time) >= (CAST(:date AS date) + CAST(:time AS time))`,
+          { id, date, time },
+        )
+        .andWhere('pri.status = :reservedStatus', {
+          reservedStatus: ReservationStatus.RESERVED,
+        })
+        .getMany();
+
       // 2️⃣ 취소 시점 이후 예약 상태 변경
       await queryRunner.manager
         .createQueryBuilder()
@@ -858,6 +873,15 @@ export class PopupService {
           time,
         })
         .execute();
+
+      for (const r of reservations) {
+        console.log('Sending notification to user', r.userId);
+        this.notificationService.createAndSend(
+          r.userId,
+          `${popup.title} 팝업이 운영 취소되어 예약이 취소되었습니다.`,
+          ReservationStatus.CANCELED_BY_POPUP,
+        );
+      }
 
       await queryRunner.commitTransaction();
     } catch (error) {

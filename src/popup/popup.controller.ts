@@ -127,7 +127,7 @@ export class PopupController {
     );
   }
 
-  @Patch('cancel')
+  @Patch('cancel-popup')
   async popupCancel(
     @User('id') userId: number,
     @Body() updatePopupCancelDto: UpdatePopupCancelDto,

@@ -5,7 +5,6 @@ import * as bcrypt from 'bcrypt';
 import { envVariablesKeys } from 'src/common/const/env.const';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { Role, User } from './entities/user.entity';
 
 @Injectable()
@@ -43,6 +42,7 @@ export class UserService {
   async getMe(userId: number) {
     return this.userRepository.findOne({
       select: {
+        id: true,
         email: true,
         role: true,
       },
@@ -62,17 +62,5 @@ export class UserService {
     }
 
     return user;
-  }
-
-  findAll() {
-    return `This action returns all user`;
-  }
-
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} user`;
   }
 }

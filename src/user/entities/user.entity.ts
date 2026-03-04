@@ -1,7 +1,7 @@
 import { BaseTable } from 'src/common/entities/base-table.entity';
+import { Popup } from 'src/popup/entities/popup.entity';
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { PopupReservationInfo } from '../../popup/entities/popup-reservation-info.entity';
-import { Popup } from 'src/popup/entities/popup.entity';
 
 export enum Role {
   systemAdmin,
@@ -19,6 +19,9 @@ export class User extends BaseTable {
 
   @Column()
   password: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  refreshToken: string | null;
 
   @Column({
     type: 'enum',

@@ -1,20 +1,8 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
-import { Authorization } from 'src/auth/decorator/authorization.decorator';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UserService } from './user.service';
-import { JwtAuthGuard } from 'src/auth/guard/jwt-auth-guard';
-import { User } from './decorator/user.decorator';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { Public } from 'src/common/decorator/public.decorator';
+import { User } from './decorator/user.decorator';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UserService } from './user.service';
 
 @Controller('user')
 export class UserController {
@@ -35,25 +23,5 @@ export class UserController {
   @Get('me')
   getMe(@User('id') userId: number) {
     return this.userService.getMe(userId);
-  }
-
-  @Get()
-  findAll() {
-    return this.userService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: number) {
-    return this.userService.findOne(id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(+id, updateUserDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.userService.remove(+id);
   }
 }

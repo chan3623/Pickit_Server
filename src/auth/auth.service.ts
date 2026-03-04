@@ -129,13 +129,77 @@ export class AuthService {
     const { email, password } = this.parseBasicToken(token);
     const user = await this.authenticate(email, password);
 
-    if(user.role !== loginType) {
+    if (user.role !== loginType) {
       throw new UnauthorizedException('잘못된 로그인 정보입니다');
     }
 
+    const accessToken = await this.issueToken(user, false);
+    const refreshToken = await this.issueToken(user, true);
+
+    const hashedRefreshToken = await bcrypt.hash(
+      refreshToken,
+      this.configService.get<number>(envVariablesKeys.hashRounds) || 10,
+    );
+
+    await this.userRepository.update(user.id, {
+      refreshToken: hashedRefreshToken,
+    });
+
     return {
-      accessToken: await this.issueToken(user, false),
-      refreshToken: await this.issueToken(user, true),
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  async logout(userId: number) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new BadRequestException('존재하지 않는 유저입니다.');
+    }
+
+    console.log('logout');
+    return await this.userRepository.update(
+      { id: userId },
+      { refreshToken: null },
+    );
+  }
+
+  async refresh(rawToken: string) {
+    const payload = await this.parseBearerToken(rawToken, true);
+
+    const user = await this.userRepository.findOne({
+      where: { id: payload.sub },
+    });
+
+    if (!user || !user.refreshToken) {
+      throw new UnauthorizedException('다시 로그인해주세요.');
+    }
+
+    const token = rawToken.split(' ')[1];
+
+    const isMatch = await bcrypt.compare(token, user.refreshToken);
+
+    if (!isMatch) {
+      throw new UnauthorizedException('유효하지 않은 refresh 토큰입니다.');
+    }
+
+    const newAccessToken = await this.issueToken(user, false);
+
+    const newRefreshToken = await this.issueToken(user, true);
+
+    const hashedRefreshToken = await bcrypt.hash(
+      newRefreshToken,
+      this.configService.get<number>(envVariablesKeys.hashRounds) || 10,
+    );
+
+    await this.userRepository.update(user.id, {
+      refreshToken: hashedRefreshToken,
+    });
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
     };
   }
 }
