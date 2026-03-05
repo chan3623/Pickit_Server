@@ -1,5 +1,3 @@
-import { BaseTable } from 'src/common/entities/base-table.entity';
-import { User } from 'src/user/entities/user.entity';
 import {
   Column,
   Entity,
@@ -8,6 +6,8 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { BaseTable } from '../../common/entities/base-table.entity';
+import { User } from '../../user/entities/user.entity';
 import { PopupDayInfo } from './popup-day-info.entity';
 
 export enum PopupStatus {

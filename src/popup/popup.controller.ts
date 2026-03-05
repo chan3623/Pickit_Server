@@ -10,9 +10,9 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { FileNameEncodingInterceptor } from 'src/common/decorator/file.decorator';
-import { Public } from 'src/common/decorator/public.decorator';
-import { User } from 'src/user/decorator/user.decorator';
+import { FileNameEncodingInterceptor } from '../common/decorator/file.decorator';
+import { Public } from '../common/decorator/public.decorator';
+import { User } from '../user/decorator/user.decorator';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
 import { CreatePopupDto } from './dto/create-popup.dto';
 import { ReservationManageQueryDto } from './dto/reservation-manage-query.dto';

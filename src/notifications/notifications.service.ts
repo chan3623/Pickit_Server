@@ -1,8 +1,8 @@
 // src/notifications/notification.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ReservationStatus } from 'src/popup/entities/popup-reservation-info.entity';
 import { Repository } from 'typeorm';
+import { ReservationStatus } from '../popup/entities/popup-reservation-info.entity';
 import { Notifications } from './entities/notifications.entity';
 import { NotificationGateway } from './notifications.gateway';
 

@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Patch } from '@nestjs/common';
-import { User } from 'src/user/decorator/user.decorator';
+import { User } from '../user/decorator/user.decorator';
 import { NotificationService } from './notifications.service';
 
 @Controller('notifications')

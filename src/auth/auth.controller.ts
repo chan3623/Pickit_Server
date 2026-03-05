@@ -1,6 +1,6 @@
 import { Controller, Post } from '@nestjs/common';
-import { Public } from 'src/common/decorator/public.decorator';
-import { User } from 'src/user/decorator/user.decorator';
+import { Public } from '../common/decorator/public.decorator';
+import { User } from '../user/decorator/user.decorator';
 import { AuthService } from './auth.service';
 import { Authorization } from './decorator/authorization.decorator';
 import { LoginType } from './decorator/login-type.decorator';

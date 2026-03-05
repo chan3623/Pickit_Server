@@ -1,7 +1,7 @@
-import { BaseTable } from 'src/common/entities/base-table.entity';
-import { Popup } from 'src/popup/entities/popup.entity';
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { BaseTable } from '../../common/entities/base-table.entity';
 import { PopupReservationInfo } from '../../popup/entities/popup-reservation-info.entity';
+import { Popup } from '../../popup/entities/popup.entity';
 
 export enum Role {
   systemAdmin,

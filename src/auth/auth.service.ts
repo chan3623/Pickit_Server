@@ -7,9 +7,9 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { envVariablesKeys } from 'src/common/const/env.const';
-import { Role, User } from 'src/user/entities/user.entity';
 import { Repository } from 'typeorm';
+import { envVariablesKeys } from '../common/const/env.const';
+import { Role, User } from '../user/entities/user.entity';
 
 @Injectable()
 export class AuthService {

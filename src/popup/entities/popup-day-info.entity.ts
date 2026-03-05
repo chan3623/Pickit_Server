@@ -1,4 +1,3 @@
-import { BaseTable } from 'src/common/entities/base-table.entity';
 import {
   Column,
   Entity,
@@ -6,6 +5,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { BaseTable } from '../../common/entities/base-table.entity';
 import { Popup } from './popup.entity';
 
 @Entity('popup_day_info')

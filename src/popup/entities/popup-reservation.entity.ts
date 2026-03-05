@@ -1,4 +1,3 @@
-import { BaseTable } from 'src/common/entities/base-table.entity';
 import {
   Column,
   Entity,
@@ -9,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
+import { BaseTable } from '../../common/entities/base-table.entity';
 import { PopupReservationInfo } from './popup-reservation-info.entity';
 import { Popup } from './popup.entity';
 
