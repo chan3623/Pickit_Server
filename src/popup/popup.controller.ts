@@ -7,9 +7,13 @@ import {
   Post,
   Query,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Role } from 'src/common/const/roles.enum';
+import { Roles } from 'src/common/decorator/roles.decorator';
+import { RolesGuard } from 'src/common/guard/roles.guard';
 import { FileNameEncodingInterceptor } from '../common/decorator/file.decorator';
 import { Public } from '../common/decorator/public.decorator';
 import { User } from '../user/decorator/user.decorator';
@@ -74,6 +78,8 @@ export class PopupController {
     );
   }
 
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   @Post()
   @UseInterceptors(FileInterceptor('image'), FileNameEncodingInterceptor)
   async createPopup(
@@ -95,6 +101,8 @@ export class PopupController {
     );
   }
 
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   @Patch()
   @UseInterceptors(FileInterceptor('image'), FileNameEncodingInterceptor)
   async updatePopup(
@@ -116,6 +124,8 @@ export class PopupController {
     );
   }
 
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   @Patch('early-close')
   async popupEarlyClosed(
     @User('id') userId: number,
@@ -127,6 +137,8 @@ export class PopupController {
     );
   }
 
+  @Roles(Role.ADMIN)
+  @UseGuards(RolesGuard)
   @Patch('cancel-popup')
   async popupCancel(
     @User('id') userId: number,
