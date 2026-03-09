@@ -127,6 +127,7 @@ export class AuthService {
 
   async login(token: string, loginType: number) {
     const { email, password } = this.parseBasicToken(token);
+
     const user = await this.authenticate(email, password);
 
     if (user.role !== loginType) {

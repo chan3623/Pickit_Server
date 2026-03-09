@@ -10,14 +10,14 @@ export class UserController {
 
   @Public()
   @Post()
-  createUser(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto, 'user');
+  async createUser(@Body() createUserDto: CreateUserDto) {
+    return await this.userService.create(createUserDto, 'user');
   }
 
   @Public()
   @Post('admin')
-  createAdmin(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto, 'admin');
+  async createAdmin(@Body() createUserDto: CreateUserDto) {
+    return await this.userService.create(createUserDto, 'admin');
   }
 
   @Get('me')

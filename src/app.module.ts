@@ -55,7 +55,7 @@ import { UserModule } from './user/user.module';
           User,
           Notifications,
         ],
-        synchronize: false,
+        synchronize: true,
       }),
     }),
     ScheduleModule.forRoot(),

@@ -1,11 +1,9 @@
 import { ExceptionFilter, HttpException } from '@nestjs/common';
-
 import { ERROR_MESSAGES } from '../const/error-message';
 
 export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception, host) {
     const ctx = host.switchToHttp();
-
     const response = ctx.getResponse();
     const request = ctx.getRequest();
 

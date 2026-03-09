@@ -78,7 +78,7 @@ export class PopupController {
     );
   }
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.admin)
   @UseGuards(RolesGuard)
   @Post()
   @UseInterceptors(FileInterceptor('image'), FileNameEncodingInterceptor)
@@ -101,7 +101,7 @@ export class PopupController {
     );
   }
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.admin)
   @UseGuards(RolesGuard)
   @Patch()
   @UseInterceptors(FileInterceptor('image'), FileNameEncodingInterceptor)
@@ -124,7 +124,7 @@ export class PopupController {
     );
   }
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.admin)
   @UseGuards(RolesGuard)
   @Patch('early-close')
   async popupEarlyClosed(
@@ -137,7 +137,7 @@ export class PopupController {
     );
   }
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.admin)
   @UseGuards(RolesGuard)
   @Patch('cancel-popup')
   async popupCancel(
