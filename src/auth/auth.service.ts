@@ -37,6 +37,7 @@ export class AuthService {
     const decoded = Buffer.from(token, 'base64').toString('utf-8');
 
     const tokenSplit = decoded.split(':');
+
     if (tokenSplit.length !== 2) {
       throw new BadRequestException('토큰 포맷이 잘못되었습니다.');
     }
@@ -130,8 +131,10 @@ export class AuthService {
 
     const user = await this.authenticate(email, password);
 
-    if (user.role !== loginType) {
-      throw new UnauthorizedException('잘못된 로그인 정보입니다');
+    if (user.role !== Role.systemAdmin) {
+      if (user.role !== loginType) {
+        throw new UnauthorizedException('잘못된 로그인 정보입니다');
+      }
     }
 
     const accessToken = await this.issueToken(user, false);
@@ -159,7 +162,6 @@ export class AuthService {
       throw new BadRequestException('존재하지 않는 유저입니다.');
     }
 
-    console.log('logout');
     return await this.userRepository.update(
       { id: userId },
       { refreshToken: null },

@@ -11,8 +11,8 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  login(@Authorization() token: string, @LoginType() loginType: number) {
-    return this.authService.login(token, loginType);
+  async login(@Authorization() token: string, @LoginType() loginType: number) {
+    return await this.authService.login(token, loginType);
   }
 
   @Post('logout')

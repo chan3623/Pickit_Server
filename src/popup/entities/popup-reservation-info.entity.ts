@@ -13,6 +13,7 @@ import { PopupReservation } from './popup-reservation.entity';
 export enum ReservationStatus {
   RESERVED = 'RESERVED',
   COMPLETED = 'COMPLETED',
+  NO_SHOW = 'NO_SHOW',
   CANCELED_BY_USER = 'CANCELED_BY_USER',
   CANCELED_BY_POPUP = 'CANCELED_BY_POPUP',
 }

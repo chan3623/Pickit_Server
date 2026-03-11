@@ -4,7 +4,6 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import fs from 'fs';
 import path from 'path';
@@ -18,6 +17,7 @@ import { UpdatePopupCancelDto } from './dto/update-popup-cancel.dto';
 import { UpdatePopupStatusDto } from './dto/update-popup-status.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
 import { UpdateUserPopupStatusDto } from './dto/update-user-popup-status.dto';
+import { UpdateReservationStatusDto } from './dto/update-user-reservation-status.dto';
 import { PopupDayInfo } from './entities/popup-day-info.entity';
 import {
   PopupReservationInfo,
@@ -43,11 +43,52 @@ export class PopupService {
     private notificationService: NotificationService,
   ) {}
 
-  async findPopups() {
-    return await this.popupRepository
+  async findPopups({
+    cursor,
+    limit,
+    status,
+    keyword,
+  }: {
+    cursor: number | null;
+    limit: number;
+    status: string;
+    keyword: string;
+  }) {
+    const qb = this.popupRepository
       .createQueryBuilder('popup')
-      .orderBy('popup.id', 'ASC')
-      .getMany();
+      .orderBy('popup.id', 'DESC')
+      .take(limit);
+
+    if (cursor) {
+      qb.andWhere('popup.id < :cursor', { cursor });
+    }
+
+    if (keyword) {
+      qb.andWhere('popup.title LIKE :keyword', {
+        keyword: `%${keyword}%`,
+      });
+    }
+
+    if (status && status !== 'ALL') {
+      if (status === 'ONGOING') {
+        qb.andWhere('popup.startDate <= NOW() AND popup.endDate >= NOW()');
+      }
+
+      if (status === 'UPCOMING') {
+        qb.andWhere('popup.startDate > NOW()');
+      }
+
+      if (status === 'CLOSED') {
+        qb.andWhere('popup.endDate < NOW()');
+      }
+    }
+
+    const popups = await qb.getMany();
+
+    return {
+      popups,
+      nextCursor: popups.length ? popups[popups.length - 1].id : null,
+    };
   }
 
   async findRandomPopups() {
@@ -116,9 +157,6 @@ export class PopupService {
   }
 
   async findPopupReservation(popupId: number) {
-    /**
-     * 1. 팝업 조회
-     */
     const popup = await this.popupRepository.findOne({
       select: {
         id: true,
@@ -133,9 +171,6 @@ export class PopupService {
       throw new NotFoundException('존재하지 않는 팝업입니다.');
     }
 
-    /**
-     * 2. 요일별 운영 정보
-     */
     const dayInfos = await this.popupDayInfoRepository.find({
       where: { popupId },
       order: { dayOfWeek: 'ASC' },
@@ -147,9 +182,6 @@ export class PopupService {
       );
     }
 
-    /**
-     * 3. 예약 타임별 예약 인원 집계
-     */
     const reservations = await this.popupReservationRepository
       .createQueryBuilder('reservation')
       .leftJoin('reservation.reservationInfos', 'info')
@@ -167,9 +199,6 @@ export class PopupService {
       .addOrderBy('reservation.time', 'ASC')
       .getRawMany();
 
-    /**
-     * 4. 응답
-     */
     return {
       popup,
       dayInfos,
@@ -264,7 +293,8 @@ export class PopupService {
     popupId: number,
     query: ReservationManageQueryDto,
   ) {
-    const { status, date, email, phone } = query;
+    const { status, date, email, phone, page = 1, limit = 10 } = query;
+    const offset = (page - 1) * limit;
 
     const popup = await this.popupRepository.findOne({
       where: { id: popupId, userId },
@@ -274,17 +304,13 @@ export class PopupService {
       throw new BadRequestException('존재하지 않는 팝업스토어입니다.');
     }
 
-    /**
-     * =========================
-     * 1️⃣ 전체 통계 집계
-     * =========================
-     */
     const totalStats = await this.popupReservationInfoRepository
       .createQueryBuilder('pri')
       .innerJoin('pri.reservations', 'pr')
       .select([
         `COUNT(*) FILTER (WHERE pri.status != :cancelPopup) AS "totalReservationCount"`,
         `COUNT(*) FILTER (WHERE pri.status = :reserved) AS "afterReservationCount"`,
+        `COUNT(*) FILTER (WHERE pri.status = :noShow) AS "noShowCount"`,
         `COUNT(*) FILTER (WHERE pri.status = :cancelUser) AS "userCancelCount"`,
         `COUNT(*) FILTER (WHERE pri.status = :completed) AS "visitCount"`,
       ])
@@ -292,22 +318,19 @@ export class PopupService {
       .setParameters({
         cancelPopup: ReservationStatus.CANCELED_BY_POPUP,
         reserved: ReservationStatus.RESERVED,
+        noShow: ReservationStatus.NO_SHOW,
         cancelUser: ReservationStatus.CANCELED_BY_USER,
         completed: ReservationStatus.COMPLETED,
       })
       .getRawOne();
 
-    /**
-     * =========================
-     * 2️⃣ 선택 날짜 통계 집계
-     * =========================
-     */
     const selectedStats = await this.popupReservationInfoRepository
       .createQueryBuilder('pri')
       .innerJoin('pri.reservations', 'pr')
       .select([
         `COUNT(*) FILTER (WHERE pri.status != :cancelPopup) AS "selectedReservationCount"`,
         `COUNT(*) FILTER (WHERE pri.status = :reserved) AS "selectedAfterReservationCount"`,
+        `COUNT(*) FILTER (WHERE pri.status = :noShow) AS "selectedNoShowCount"`,
         `COUNT(*) FILTER (WHERE pri.status = :cancelUser) AS "selectedCancelCount"`,
         `COUNT(*) FILTER (WHERE pri.status = :completed) AS "selectedVisitCount"`,
       ])
@@ -316,6 +339,7 @@ export class PopupService {
       .setParameters({
         cancelPopup: ReservationStatus.CANCELED_BY_POPUP,
         reserved: ReservationStatus.RESERVED,
+        noShow: ReservationStatus.NO_SHOW,
         cancelUser: ReservationStatus.CANCELED_BY_USER,
         completed: ReservationStatus.COMPLETED,
       })
@@ -323,10 +347,87 @@ export class PopupService {
 
     /**
      * =========================
-     * 3️⃣ 선택 날짜 예약 목록 조회 (필터 적용)
+     * 1️⃣ 예약 ID 조회 (pagination)
      * =========================
      */
-    const qb = this.popupReservationRepository
+    const idQb = this.popupReservationRepository
+      .createQueryBuilder('pr')
+      .leftJoin('popup_reservation_info', 'pri', 'pri.reservationId = pr.id')
+      .leftJoin('user', 'u', 'u.id = pri.userId')
+      .select('DISTINCT pr.id', 'id')
+      .where('pr.popupId = :popupId', { popupId })
+      .andWhere('pr.date = :date', { date })
+      .andWhere('pri.status != :cancelPopup', {
+        cancelPopup: ReservationStatus.CANCELED_BY_POPUP,
+      });
+
+    if (status) {
+      let changeStatus;
+      if (status === 'COMPLETED') changeStatus = ReservationStatus.COMPLETED;
+      else if (status === 'RESERVED') changeStatus = ReservationStatus.RESERVED;
+      else if (status === 'CANCELED_BY_USER')
+        changeStatus = ReservationStatus.CANCELED_BY_USER;
+      else if (status === 'NO_SHOW') changeStatus = ReservationStatus.NO_SHOW;
+
+      idQb.andWhere('pri.status = :changeStatus', { changeStatus });
+    }
+
+    if (email) {
+      idQb.andWhere('u.email LIKE :email', {
+        email: `%${email}%`,
+      });
+    }
+
+    if (phone) {
+      idQb.andWhere('pri."reserverPhone" LIKE :phone', {
+        phone: `%${phone}%`,
+      });
+    }
+
+    idQb.orderBy('pr.id', 'ASC');
+
+    const reservationIds = await idQb.getRawMany();
+
+    const ids = reservationIds.map((v) => v.id);
+
+    if (ids.length === 0) {
+      return {
+        totalReservationCount: Number(totalStats.totalReservationCount),
+        afterReservationCount: Number(totalStats.afterReservationCount),
+        noShowCount: Number(totalStats.noShowCount),
+        userCancelCount: Number(totalStats.userCancelCount),
+        visitCount: Number(totalStats.visitCount),
+
+        selectedReservationCount: Number(
+          selectedStats.selectedReservationCount,
+        ),
+        selectedAfterReservationCount: Number(
+          selectedStats.selectedAfterReservationCount,
+        ),
+        selectedNoShowCount: Number(selectedStats.selectedNoShowCount),
+        selectedCancelCount: Number(selectedStats.selectedCancelCount),
+        selectedVisitCount: Number(selectedStats.selectedVisitCount),
+
+        popupReservations: [],
+        totalPages: 0,
+      };
+    }
+
+    /**
+     * =========================
+     * 2️⃣ 실제 데이터 조회
+     * =========================
+     */
+
+    const totalCount = await this.popupReservationRepository
+      .createQueryBuilder('pr')
+      .leftJoin('popup_reservation_info', 'pri', 'pri.reservationId = pr.id')
+      .leftJoin('user', 'u', 'u.id = pri.userId')
+      .where('pr.id IN (:...ids)', { ids })
+      .select('COUNT(pri.id)', 'count')
+      .getRawOne();
+
+    const rawQb = this.popupReservationRepository
       .createQueryBuilder('pr')
       .leftJoin('popup_reservation_info', 'pri', 'pri.reservationId = pr.id')
       .leftJoin('user', 'u', 'u.id = pri.userId')
@@ -342,46 +443,30 @@ export class PopupService {
         'pri."reserverPhone" AS "pri_reserverPhone"',
         'u.email AS u_email',
       ])
-      .where('pr.popupId = :popupId', { popupId })
-      .andWhere('pr.date = :date', { date })
-      .andWhere('pri.status != :cancelPopup', {
-        cancelPopup: ReservationStatus.CANCELED_BY_POPUP,
-      });
-
-    /**
-     * 🔎 선택 필터 동적 적용
-     */
-    if (status) {
-      let changeStatus;
-      if (status === 'COMPLETED') {
-        changeStatus = ReservationStatus.COMPLETED;
-      } else if (status === 'RESERVED') {
-        changeStatus = ReservationStatus.RESERVED;
-      } else if (status === 'CANCELED_BY_USER') {
-        changeStatus = ReservationStatus.CANCELED_BY_USER;
-      }
-      qb.andWhere('pri.status = :changeStatus', { changeStatus });
-    }
-
-    if (email) {
-      qb.andWhere('u.email LIKE :email', {
-        email: `%${email}%`,
-      });
-    }
+      .where('pr.id IN (:...ids)', { ids });
 
     if (phone) {
-      qb.andWhere('pri."reserverPhone" LIKE :phone', {
+      rawQb.andWhere('pri."reserverPhone" LIKE :phone', {
         phone: `%${phone}%`,
       });
     }
 
-    qb.orderBy('pr.date', 'ASC').addOrderBy('pr.time', 'ASC');
+    if (email) {
+      rawQb.andWhere('u.email LIKE :email', {
+        email: `%${email}%`,
+      });
+    }
 
-    const rawData = await qb.getRawMany();
+    const rawData = await rawQb
+      .orderBy('pr.date', 'ASC')
+      .addOrderBy('pr.time', 'ASC')
+      .offset(offset)
+      .limit(limit)
+      .getRawMany();
 
     /**
      * =========================
-     * 4️⃣ 데이터 그룹핑
+     * 3️⃣ 데이터 그룹핑
      * =========================
      */
     const reservationMap = new Map();
@@ -408,9 +493,12 @@ export class PopupService {
       }
     }
 
+    const totalPages = Math.ceil(totalCount.count / limit);
+
     return {
       totalReservationCount: Number(totalStats.totalReservationCount),
       afterReservationCount: Number(totalStats.afterReservationCount),
+      noShowCount: Number(totalStats.noShowCount),
       userCancelCount: Number(totalStats.userCancelCount),
       visitCount: Number(totalStats.visitCount),
 
@@ -418,10 +506,12 @@ export class PopupService {
       selectedAfterReservationCount: Number(
         selectedStats.selectedAfterReservationCount,
       ),
+      selectedNoShowCount: Number(selectedStats.selectedNoShowCount),
       selectedCancelCount: Number(selectedStats.selectedCancelCount),
       selectedVisitCount: Number(selectedStats.selectedVisitCount),
 
       popupReservations: Array.from(reservationMap.values()),
+      totalPages,
     };
   }
 
@@ -715,6 +805,34 @@ export class PopupService {
     return result;
   }
 
+  async updateReservationStatus(
+    updateReservationStatusDto: UpdateReservationStatusDto,
+  ) {
+    const { id, status } = updateReservationStatusDto;
+
+    let updateStatus;
+    if (status === 'COMPLETED') {
+      updateStatus = ReservationStatus.COMPLETED;
+    } else if (status === 'NO_SHOW') {
+      updateStatus = ReservationStatus.NO_SHOW;
+    } else {
+      throw new BadRequestException('잘못된 상태값입니다.');
+    }
+
+    const userReservation = await this.popupReservationInfoRepository.findOne({
+      where: { id },
+    });
+
+    if (!userReservation) {
+      throw new BadRequestException('존재하지 않는 유저 예약 정보입니다.');
+    }
+
+    return await this.popupReservationInfoRepository.update(
+      { id },
+      { status: updateStatus },
+    );
+  }
+
   async cancelUserReservation(
     userId: number,
     updateUserPopupStatusDto: UpdateUserPopupStatusDto,
@@ -892,17 +1010,5 @@ export class PopupService {
     }
 
     return await this.popupRepository.findOne({ where: { id } });
-  }
-
-  @Cron('*/5 * * * *')
-  async autoCompleteReservations() {
-    await this.dataSource.query(`
-    UPDATE popup_reservation_info pri
-    SET status = 'COMPLETED'
-    FROM popup_reservation pr
-    WHERE pri."reservationId" = pr.id
-      AND pri.status = 'RESERVED'
-      AND (pr.date::timestamp + pr.time) <= NOW()
-  `);
   }
 }

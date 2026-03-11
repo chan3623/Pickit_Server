@@ -24,6 +24,7 @@ import { UpdatePopupCancelDto } from './dto/update-popup-cancel.dto';
 import { UpdatePopupStatusDto } from './dto/update-popup-status.dto';
 import { UpdatePopupDto } from './dto/update-popup.dto';
 import { UpdateUserPopupStatusDto } from './dto/update-user-popup-status.dto';
+import { UpdateReservationStatusDto } from './dto/update-user-reservation-status.dto';
 import { PopupService } from './popup.service';
 
 @Controller('popup')
@@ -32,11 +33,21 @@ export class PopupController {
 
   @Public()
   @Get()
-  async getPopups() {
-    const popupData = await this.popupService.findPopups();
+  async getPopups(
+    @Query('cursor') cursor?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: string,
+    @Query('keyword') keyword?: string,
+  ) {
+    const popupData = await this.popupService.findPopups({
+      cursor: cursor ? Number(cursor) : null,
+      limit: limit ? Number(limit) : 12,
+      status: status ?? 'ALL',
+      keyword: keyword ?? '',
+    });
+
     return popupData;
   }
-
   @Public()
   @Get('random')
   async getRandomPopups() {
@@ -101,6 +112,17 @@ export class PopupController {
     );
   }
 
+  @Patch('cancel-user')
+  async cancelUserReservation(
+    @User('id') userId: number,
+    @Body() updateUserPopupStatusDto: UpdateUserPopupStatusDto,
+  ) {
+    return await this.popupService.cancelUserReservation(
+      userId,
+      updateUserPopupStatusDto,
+    );
+  }
+
   @Roles(Role.admin)
   @UseGuards(RolesGuard)
   @Patch()
@@ -113,14 +135,14 @@ export class PopupController {
     return await this.popupService.updatePopup(userId, updatePopupDto, image);
   }
 
-  @Patch('cancel-user')
-  async cancelUserReservation(
-    @User('id') userId: number,
-    @Body() updateUserPopupStatusDto: UpdateUserPopupStatusDto,
+  @Roles(Role.admin)
+  @UseGuards(RolesGuard)
+  @Patch('reservation-status')
+  async updateReservationStatus(
+    @Body() updateReservationStatusDto: UpdateReservationStatusDto,
   ) {
-    return await this.popupService.cancelUserReservation(
-      userId,
-      updateUserPopupStatusDto,
+    return await this.popupService.updateReservationStatus(
+      updateReservationStatusDto,
     );
   }
 

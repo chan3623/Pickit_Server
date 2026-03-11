@@ -32,10 +32,15 @@ export class UserService {
       this.configService.get<number>(envVariablesKeys.hashRounds) || 10,
     );
 
-    return await this.userRepository.save({
+    await this.userRepository.save({
       email,
       password: hash,
       role: type === 'user' ? Role.user : Role.admin,
+    });
+
+    return await this.userRepository.findOne({
+      select: { id: true, email: true, role: true },
+      where: { email },
     });
   }
 
