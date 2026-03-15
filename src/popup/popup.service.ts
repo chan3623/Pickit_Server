@@ -632,6 +632,15 @@ export class PopupService {
     return await this.dataSource.transaction(
       'READ COMMITTED',
       async (manager) => {
+        const popup = await manager.findOne(Popup, {
+          select: { title: true, userId: true },
+          where: { id: popupId },
+        });
+
+        if (!popup) {
+          throw new BadRequestException('존재하지 않는 팝업 ID입니다.');
+        }
+
         const dayInfo = await manager.findOne(PopupDayInfo, {
           select: { capacityPerSlot: true },
           where: { popupId, dayOfWeek },
@@ -676,6 +685,12 @@ export class PopupService {
             '예약 인원이 총 예약 가능 수를 초과했습니다.',
           );
         }
+
+        this.notificationService.createAndSend(
+          popup.userId,
+          `${popup.title}(${date} ${time}) 예약 진행었습니다.`,
+          ReservationStatus.RESERVED,
+        );
 
         return await manager.save(PopupReservationInfo, {
           reservationId: reservation.id,
@@ -837,10 +852,18 @@ export class PopupService {
     userId: number,
     updateUserPopupStatusDto: UpdateUserPopupStatusDto,
   ) {
-    const { id, status } = updateUserPopupStatusDto;
+    const { id, status, popupId } = updateUserPopupStatusDto;
 
     if (status !== ReservationStatus.CANCELED_BY_USER) {
       throw new BadRequestException('상태 값이 잘못되었습니다.');
+    }
+
+    const popup = await this.popupRepository.findOne({
+      where: { id: popupId },
+    });
+
+    if (!popup) {
+      throw new BadRequestException('존재하지 않는 팝업의 ID입니다.');
     }
 
     const findUserReservation =
@@ -878,6 +901,12 @@ export class PopupService {
       await this.popupReservationInfoRepository.findOne({
         where: { id, userId },
       });
+
+    this.notificationService.createAndSend(
+      popup.userId,
+      `${popup.title}(${findReservation.date} ${findReservation.time}) 예약이 취소되었습니다.`,
+      ReservationStatus.RESERVED,
+    );
 
     return newUserReservation;
   }
@@ -993,7 +1022,6 @@ export class PopupService {
         .execute();
 
       for (const r of reservations) {
-        console.log('Sending notification to user', r.userId);
         this.notificationService.createAndSend(
           r.userId,
           `${popup.title} 팝업이 운영 취소되어 예약이 취소되었습니다.`,

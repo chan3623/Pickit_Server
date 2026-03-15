@@ -10,4 +10,9 @@ export class UpdateUserPopupStatusDto {
 
   @IsNotEmpty()
   status: ReservationStatus;
+
+  @IsNotEmpty()
+  @IsNumber()
+  @Type(() => Number)
+  popupId: number;
 }
