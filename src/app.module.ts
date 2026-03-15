@@ -6,6 +6,8 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import Joi from 'joi';
 import { join } from 'path';
+import { ActionLogModule } from './action-log/action-log.module';
+import { ActionLog } from './action-log/entities/action-log.entity';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guard/jwt-auth-guard';
 import { Notifications } from './notifications/entities/notifications.entity';
@@ -54,6 +56,7 @@ import { UserModule } from './user/user.module';
           PopupReservationInfo,
           User,
           Notifications,
+          ActionLog,
         ],
         synchronize: true,
       }),
@@ -63,6 +66,7 @@ import { UserModule } from './user/user.module';
     UserModule,
     AuthModule,
     NotificationModule,
+    ActionLogModule,
   ],
   providers: [
     {

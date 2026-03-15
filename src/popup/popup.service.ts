@@ -2,12 +2,18 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import fs from 'fs';
 import path from 'path';
 import { DataSource, In, Repository } from 'typeorm';
+import { ActionLogService } from '../action-log/action-log.service';
+import {
+  ActionType,
+  TargetEntity,
+} from '../action-log/entities/action-log.entity';
 import { NotificationService } from '../notifications/notifications.service';
 import { User } from '../user/entities/user.entity';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
@@ -27,6 +33,8 @@ import { PopupReservation } from './entities/popup-reservation.entity';
 import { Popup, PopupStatus } from './entities/popup.entity';
 @Injectable()
 export class PopupService {
+  private readonly logger = new Logger(PopupService.name);
+
   constructor(
     private readonly dataSource: DataSource,
 
@@ -41,6 +49,7 @@ export class PopupService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private notificationService: NotificationService,
+    private readonly actionLogService: ActionLogService,
   ) {}
 
   async findPopups({
@@ -611,6 +620,14 @@ export class PopupService {
 
       await qr.manager.save(PopupDayInfo, popupDayInfos);
 
+      await this.actionLogService.logAction(
+        userId,
+        ActionType.CREATE,
+        TargetEntity.POPUP,
+        newPopup.id,
+        `${newPopup.title} 팝업스토어 생성`,
+      );
+
       await qr.commitTransaction();
     } catch (e) {
       await qr.rollbackTransaction();
@@ -686,10 +703,22 @@ export class PopupService {
           );
         }
 
-        this.notificationService.createAndSend(
+        await this.notificationService.createAndSend(
           popup.userId,
           `${popup.title}(${date} ${time}) 예약 진행었습니다.`,
           ReservationStatus.RESERVED,
+        );
+
+        this.logger.log(
+          `Reservation created: User ID ${userId} reserved ${count} slots for Popup "${popup.title}" (ID: ${popupId}) at ${date} ${time}`,
+        );
+
+        await this.actionLogService.logAction(
+          userId,
+          ActionType.CREATE,
+          TargetEntity.RESERVATION,
+          reservation.id,
+          `${popup.title} 예약 생성 (${date} ${time}, ${count}명)`,
         );
 
         return await manager.save(PopupReservationInfo, {
@@ -795,6 +824,14 @@ export class PopupService {
       );
 
       await qr.manager.save(PopupDayInfo, popupDayInfos);
+
+      await this.actionLogService.logAction(
+        userId,
+        ActionType.UPDATE,
+        TargetEntity.POPUP,
+        findPopup.id,
+        `${findPopup.title} 팝업스토어 수정`,
+      );
 
       await qr.commitTransaction();
     } catch (e) {
@@ -908,6 +945,18 @@ export class PopupService {
       ReservationStatus.RESERVED,
     );
 
+    this.logger.log(
+      `Reservation cancelled by user: User ID ${userId} cancelled reservation (ID: ${id}) for Popup "${popup.title}"`,
+    );
+
+    await this.actionLogService.logAction(
+      userId,
+      ActionType.CANCEL,
+      TargetEntity.RESERVATION,
+      id,
+      `${popup.title} 예약 취소 (유저 요청)`,
+    );
+
     return newUserReservation;
   }
 
@@ -932,6 +981,14 @@ export class PopupService {
     await this.popupRepository.update({ id }, { status });
 
     const updatePopup = await this.popupRepository.findOne({ where: { id } });
+
+    await this.actionLogService.logAction(
+      userId,
+      ActionType.UPDATE,
+      TargetEntity.POPUP,
+      findPopup.id,
+      `${findPopup.title} 팝업스토어 조기종료`,
+    );
 
     return updatePopup;
   }
@@ -1028,6 +1085,18 @@ export class PopupService {
           ReservationStatus.CANCELED_BY_POPUP,
         );
       }
+
+      this.logger.warn(
+        `Popup cancelled by manager: Popup "${popup.title}" (ID: ${id}) cancelled by Manager ID: ${userId}. ${reservations.length} reservations affected.`,
+      );
+
+      await this.actionLogService.logAction(
+        userId,
+        ActionType.CANCEL,
+        TargetEntity.POPUP,
+        id,
+        `관리자 팝업 운영 취소: ${popup.title} (${reservations.length}건 예약 자동 취소)`,
+      );
 
       await queryRunner.commitTransaction();
     } catch (error) {

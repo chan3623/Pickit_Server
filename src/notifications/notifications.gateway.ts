@@ -22,14 +22,12 @@ export class NotificationGateway
     const userId = Number(client.handshake.query.userId);
     if (userId) {
       this.userSockets.set(userId, client.id);
-      console.log(`WebSocket 연결: userId=${userId}`);
     }
   }
 
   handleDisconnect(client: Socket) {
     const userId = Number(client.handshake.query.userId);
     if (userId) this.userSockets.delete(userId);
-    console.log(`WebSocket 연결 해제: userId=${userId}`);
   }
 
   sendNotificationToUser(userId: number, message: any) {
