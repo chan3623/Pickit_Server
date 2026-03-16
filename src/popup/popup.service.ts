@@ -15,7 +15,6 @@ import {
   TargetEntity,
 } from '../action-log/entities/action-log.entity';
 import { NotificationService } from '../notifications/notifications.service';
-import { User } from '../user/entities/user.entity';
 import { CreatePopupReservationDto } from './dto/create-popup-reservation.dto';
 import { CreatePopupDto } from './dto/create-popup.dto';
 import { ReservationManageQueryDto } from './dto/reservation-manage-query.dto';
@@ -36,8 +35,6 @@ export class PopupService {
   private readonly logger = new Logger(PopupService.name);
 
   constructor(
-    private readonly dataSource: DataSource,
-
     @InjectRepository(Popup)
     private readonly popupRepository: Repository<Popup>,
     @InjectRepository(PopupDayInfo)
@@ -46,8 +43,7 @@ export class PopupService {
     private readonly popupReservationRepository: Repository<PopupReservation>,
     @InjectRepository(PopupReservationInfo)
     private readonly popupReservationInfoRepository: Repository<PopupReservationInfo>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    private readonly dataSource: DataSource,
     private notificationService: NotificationService,
     private readonly actionLogService: ActionLogService,
   ) {}
@@ -895,58 +891,69 @@ export class PopupService {
       throw new BadRequestException('상태 값이 잘못되었습니다.');
     }
 
-    const popup = await this.popupRepository.findOne({
-      where: { id: popupId },
-    });
+    const result = await this.dataSource.transaction(async (manager) => {
+      const popupRepository = manager.getRepository(Popup);
+      const popupReservationRepository =
+        manager.getRepository(PopupReservation);
+      const popupReservationInfoRepository =
+        manager.getRepository(PopupReservationInfo);
 
-    if (!popup) {
-      throw new BadRequestException('존재하지 않는 팝업의 ID입니다.');
-    }
+      const popup = await popupRepository.findOne({
+        where: { id: popupId },
+      });
 
-    const findUserReservation =
-      await this.popupReservationInfoRepository.findOne({
+      if (!popup) {
+        throw new BadRequestException('존재하지 않는 팝업의 ID입니다.');
+      }
+
+      const findUserReservation = await popupReservationInfoRepository.findOne({
         where: { id, userId, status: ReservationStatus.RESERVED },
       });
 
-    if (!findUserReservation) {
-      throw new BadRequestException('존재하지 않는 예약내역입니다.');
-    }
+      if (!findUserReservation) {
+        throw new BadRequestException('존재하지 않는 예약내역입니다.');
+      }
 
-    await this.popupReservationInfoRepository.update(
-      { id, userId },
-      { status },
-    );
+      const findReservation = await popupReservationRepository.findOne({
+        where: { id: findUserReservation.reservationId },
+      });
 
-    const findReservation = await this.popupReservationRepository.findOne({
-      where: { id: findUserReservation.reservationId },
-    });
+      if (!findReservation) {
+        throw new BadRequestException('존재하지 않는 예약내역입니다.');
+      }
 
-    if (!findReservation) {
-      throw new BadRequestException('존재하지 않는 예약내역입니다.');
-    }
+      await popupReservationInfoRepository.update({ id, userId }, { status });
 
-    const newCurrentCount =
-      Number(findReservation.currentCount) -
-      Number(findUserReservation.quantity);
+      await popupReservationRepository
+        .createQueryBuilder()
+        .update()
+        .set({
+          currentCount: () =>
+            `currentCount - ${Number(findUserReservation.quantity)}`,
+        })
+        .where('id = :id', { id: findUserReservation.reservationId })
+        .execute();
 
-    await this.popupReservationRepository.update(
-      { id: findUserReservation.reservationId },
-      { currentCount: newCurrentCount },
-    );
-
-    const newUserReservation =
-      await this.popupReservationInfoRepository.findOne({
+      const newUserReservation = await popupReservationInfoRepository.findOne({
         where: { id, userId },
       });
 
-    this.notificationService.createAndSend(
-      popup.userId,
-      `${popup.title}(${findReservation.date} ${findReservation.time}) 예약이 취소되었습니다.`,
+      return {
+        reservation: newUserReservation,
+        popup,
+        reservationDate: findReservation.date,
+        reservationTime: findReservation.time,
+      };
+    });
+
+    await this.notificationService.createAndSend(
+      result.popup.userId,
+      `${result.popup.title}(${result.reservationDate} ${result.reservationTime}) 예약이 취소되었습니다.`,
       ReservationStatus.RESERVED,
     );
 
     this.logger.log(
-      `Reservation cancelled by user: User ID ${userId} cancelled reservation (ID: ${id}) for Popup "${popup.title}"`,
+      `Reservation cancelled by user: User ID ${userId} cancelled reservation (ID: ${id}) for Popup "${result.popup.title}"`,
     );
 
     await this.actionLogService.logAction(
@@ -954,10 +961,10 @@ export class PopupService {
       ActionType.CANCEL,
       TargetEntity.RESERVATION,
       id,
-      `${popup.title} 예약 취소 (유저 요청)`,
+      `${result.popup.title} 예약 취소 (유저 요청)`,
     );
 
-    return newUserReservation;
+    return result.reservation;
   }
 
   async popupEarlyClosed(
@@ -1007,8 +1014,11 @@ export class PopupService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
+    let popup;
+    let reservations;
+
     try {
-      const popup = await queryRunner.manager.findOne(Popup, {
+      popup = await queryRunner.manager.findOne(Popup, {
         where: { id, userId },
       });
 
@@ -1020,15 +1030,13 @@ export class PopupService {
         throw new BadRequestException('이미 취소되었거나 운영 중이 아닙니다.');
       }
 
-      // 1️⃣ 팝업 상태 변경
       await queryRunner.manager.update(
         Popup,
         { id, userId, status: PopupStatus.ACTIVE },
         { status: PopupStatus.CANCELED },
       );
 
-      // 2️⃣ 취소 시점 이후 예약 정보 조회
-      const reservations = await queryRunner.manager
+      reservations = await queryRunner.manager
         .createQueryBuilder(PopupReservationInfo, 'pri')
         .innerJoinAndSelect('pri.reservations', 'r')
         .where(
@@ -1040,7 +1048,6 @@ export class PopupService {
         })
         .getMany();
 
-      // 2️⃣ 취소 시점 이후 예약 상태 변경
       await queryRunner.manager
         .createQueryBuilder()
         .update(PopupReservationInfo)
@@ -1062,7 +1069,6 @@ export class PopupService {
         })
         .execute();
 
-      // 3️⃣ 해당 reservation들의 currentCount = 0 처리
       await queryRunner.manager
         .createQueryBuilder()
         .update(PopupReservation)
@@ -1078,26 +1084,6 @@ export class PopupService {
         })
         .execute();
 
-      for (const r of reservations) {
-        this.notificationService.createAndSend(
-          r.userId,
-          `${popup.title} 팝업이 운영 취소되어 예약이 취소되었습니다.`,
-          ReservationStatus.CANCELED_BY_POPUP,
-        );
-      }
-
-      this.logger.warn(
-        `Popup cancelled by manager: Popup "${popup.title}" (ID: ${id}) cancelled by Manager ID: ${userId}. ${reservations.length} reservations affected.`,
-      );
-
-      await this.actionLogService.logAction(
-        userId,
-        ActionType.CANCEL,
-        TargetEntity.POPUP,
-        id,
-        `관리자 팝업 운영 취소: ${popup.title} (${reservations.length}건 예약 자동 취소)`,
-      );
-
       await queryRunner.commitTransaction();
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -1105,6 +1091,26 @@ export class PopupService {
     } finally {
       await queryRunner.release();
     }
+
+    for (const r of reservations) {
+      this.notificationService.createAndSend(
+        r.userId,
+        `${popup.title} 팝업이 운영 취소되어 예약이 취소되었습니다.`,
+        ReservationStatus.CANCELED_BY_POPUP,
+      );
+    }
+
+    this.logger.warn(
+      `Popup cancelled by manager: Popup "${popup.title}" (ID: ${id}) cancelled by Manager ID: ${userId}. ${reservations.length} reservations affected.`,
+    );
+
+    await this.actionLogService.logAction(
+      userId,
+      ActionType.CANCEL,
+      TargetEntity.POPUP,
+      id,
+      `관리자 팝업 운영 취소: ${popup.title} (${reservations.length}건 예약 자동 취소)`,
+    );
 
     return await this.popupRepository.findOne({ where: { id } });
   }
