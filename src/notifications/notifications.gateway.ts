@@ -7,9 +7,15 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { envVariablesKeys } from 'src/common/const/env.const';
 
 @Injectable()
-@WebSocketGateway({ cors: true }) // 필요 시 origin 설정
+@WebSocketGateway({
+  cors: {
+    origin: process.env[envVariablesKeys.clientUrl] || 'http://localhost:3000',
+    credentials: true,
+  },
+})
 export class NotificationGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {

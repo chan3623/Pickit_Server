@@ -67,22 +67,18 @@ export class PopupService {
     if (cursor) {
       qb.andWhere('popup.id < :cursor', { cursor });
     }
-
     if (keyword) {
       qb.andWhere('popup.title LIKE :keyword', {
         keyword: `%${keyword}%`,
       });
     }
-
     if (status && status !== 'ALL') {
       if (status === 'ONGOING') {
         qb.andWhere('popup.startDate <= NOW() AND popup.endDate >= NOW()');
       }
-
       if (status === 'UPCOMING') {
         qb.andWhere('popup.startDate > NOW()');
       }
-
       if (status === 'CLOSED') {
         qb.andWhere('popup.endDate < NOW()');
       }
@@ -350,11 +346,6 @@ export class PopupService {
       })
       .getRawOne();
 
-    /**
-     * =========================
-     * 1️⃣ 예약 ID 조회 (pagination)
-     * =========================
-     */
     const idQb = this.popupReservationRepository
       .createQueryBuilder('pr')
       .leftJoin('popup_reservation_info', 'pri', 'pri.reservationId = pr.id')
@@ -418,12 +409,6 @@ export class PopupService {
       };
     }
 
-    /**
-     * =========================
-     * 2️⃣ 실제 데이터 조회
-     * =========================
-     */
-
     const totalCount = await this.popupReservationRepository
       .createQueryBuilder('pr')
       .leftJoin('popup_reservation_info', 'pri', 'pri.reservationId = pr.id')
@@ -469,11 +454,6 @@ export class PopupService {
       .limit(limit)
       .getRawMany();
 
-    /**
-     * =========================
-     * 3️⃣ 데이터 그룹핑
-     * =========================
-     */
     const reservationMap = new Map();
 
     for (const row of rawData) {
